@@ -159,6 +159,9 @@ const KpiCard: React.FC<KpiCardProps> = ({
       variant="outlined"
       onClick={onClick}
       sx={{
+        width: "100%",
+        height: "100%",
+        minHeight: 104,
         p: 2.2,
         borderRadius: 3,
         borderColor: alpha(color, 0.2),
@@ -428,9 +431,9 @@ export const DashboardPage: React.FC = () => {
     >
       <Stack spacing={3}>
         <Grid container columns={12} spacing={2.2}>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex" }}>
             {loading || !summary ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Clientes"
@@ -441,22 +444,9 @@ export const DashboardPage: React.FC = () => {
               />
             )}
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
-            {loading || !extras ? (
-              <Skeleton variant="rounded" height={104} />
-            ) : (
-              <KpiCard
-                title="Veículos"
-                value={formatCompact(extras.vehiclesActive)}
-                subtitle={`${formatCompact(extras.vehiclesTotal)} cadastrados`}
-                icon={<DirectionsCarOutlinedIcon />}
-                onClick={() => navigate("/clientes")}
-              />
-            )}
-          </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex" }}>
             {loading || !summary ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Agendamentos (7 dias)"
@@ -468,9 +458,9 @@ export const DashboardPage: React.FC = () => {
               />
             )}
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex" }}>
             {loading || !summary ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Assinaturas pendentes"
@@ -485,9 +475,9 @@ export const DashboardPage: React.FC = () => {
         </Grid>
 
         <Grid container columns={12} spacing={2.2}>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 3 }} sx={{ display: "flex" }}>
             {loading || !summary || !managementMetrics ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Receita total OS"
@@ -498,9 +488,9 @@ export const DashboardPage: React.FC = () => {
               />
             )}
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 3 }} sx={{ display: "flex" }}>
             {loading || !summary ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Ticket médio serviços"
@@ -511,9 +501,9 @@ export const DashboardPage: React.FC = () => {
               />
             )}
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 3 }} sx={{ display: "flex" }}>
             {loading || !managementMetrics ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Participação serviços"
@@ -525,9 +515,9 @@ export const DashboardPage: React.FC = () => {
               />
             )}
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 3 }} sx={{ display: "flex" }}>
             {loading || !managementMetrics ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Pendências operacionais"
@@ -542,9 +532,9 @@ export const DashboardPage: React.FC = () => {
         </Grid>
 
         <Grid container columns={12} spacing={2.2}>
-          <Grid size={{ xs: 12, md: 4 }}>
+          <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex" }}>
             {loading || !managementMetrics ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Taxa de fechamento"
@@ -556,9 +546,9 @@ export const DashboardPage: React.FC = () => {
               />
             )}
           </Grid>
-          <Grid size={{ xs: 12, md: 4 }}>
+          <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex" }}>
             {loading || !extras || !managementMetrics ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Produtividade por mecânico"
@@ -572,9 +562,9 @@ export const DashboardPage: React.FC = () => {
               />
             )}
           </Grid>
-          <Grid size={{ xs: 12, md: 4 }}>
+          <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex" }}>
             {loading || !extras ? (
-              <Skeleton variant="rounded" height={104} />
+              <Skeleton variant="rounded" width="100%" height={104} />
             ) : (
               <KpiCard
                 title="Peças sem estoque"
