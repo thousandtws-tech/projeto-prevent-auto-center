@@ -23,14 +23,19 @@ const DashboardPage = lazy(() =>
     default: module.DashboardPage,
   })),
 );
-const ComingSoonPage = lazy(() =>
-  import("../pages/coming-soon/index").then((module) => ({
-    default: module.ComingSoonPage,
+const FinancialPage = lazy(() =>
+  import("../pages/financial").then((module) => ({
+    default: module.FinancialPage,
   })),
 );
 const SchedulingPage = lazy(() =>
   import("../pages/scheduling/index").then((module) => ({
     default: module.SchedulingPage,
+  })),
+);
+const SuppliersPage = lazy(() =>
+  import("../pages/suppliers").then((module) => ({
+    default: module.SuppliersPage,
   })),
 );
 const ServiceOrderHistoryPage = lazy(() =>
@@ -169,24 +174,8 @@ export const AppRoutes: React.FC = () => {
           />
           <Route path="ordem-servico/recusas" element={<ServiceOrderRefusalsPage />} />
           <Route path="agendamentos" element={<SchedulingPage />} />
-          <Route
-            path="fornecedores"
-            element={
-              <ComingSoonPage
-                title="Fornecedores"
-                description="Modulo reservado para cadastro e consulta de fornecedores."
-              />
-            }
-          />
-          <Route
-            path="financeiro"
-            element={
-              <ComingSoonPage
-                title="Financeiro"
-                description="Modulo reservado para indicadores e controles financeiros."
-              />
-            }
-          />
+          <Route path="fornecedores" element={<SuppliersPage />} />
+          <Route path="financeiro" element={<FinancialPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
