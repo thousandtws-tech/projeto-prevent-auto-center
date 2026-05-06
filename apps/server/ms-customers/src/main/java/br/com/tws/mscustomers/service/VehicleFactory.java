@@ -10,6 +10,7 @@ public class VehicleFactory {
     public VehicleEntity create(Long workshopId, VehicleCommand command) {
         return VehicleEntity.builder()
                 .workshopId(workshopId)
+                .customerId(command.customerId())
                 .model(command.modelo())
                 .brand(command.brand())
                 .plate(command.plate())
@@ -22,6 +23,7 @@ public class VehicleFactory {
 
     public VehicleEntity update(VehicleEntity existing, VehicleCommand command) {
         return existing.toBuilder()
+                .customerId(command.customerId())
                 .model(command.modelo())
                 .brand(command.brand())
                 .plate(command.plate())

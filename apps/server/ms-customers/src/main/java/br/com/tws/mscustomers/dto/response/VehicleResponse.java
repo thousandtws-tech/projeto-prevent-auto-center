@@ -11,6 +11,8 @@ import lombok.extern.jackson.Jacksonized;
 public class VehicleResponse {
     @Schema(description = "Identificador do veiculo", example = "1")
     Long id;
+    @Schema(description = "ID do cliente vinculado ao veiculo", example = "1")
+    Long customerId;
     @Schema(description = "Modelo do veiculo", example = "Onix")
     String modelo;
     @Schema(description = "Marca do veiculo", example = "Chevrolet")

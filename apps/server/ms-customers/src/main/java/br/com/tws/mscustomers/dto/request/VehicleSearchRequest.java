@@ -27,6 +27,9 @@ public class VehicleSearchRequest {
     @Schema(description = "Ordenacao no formato campo,direcao", example = "modelo,asc", defaultValue = "id,desc")
     private String sort = "id,desc";
 
+    @Schema(description = "Filtro por cliente vinculado", example = "1")
+    private Long customerId;
+
     @Schema(description = "Filtro por modelo", example = "Onix")
     private String modelo;
     @Schema(description = "Filtro por marca", example = "Chevrolet")

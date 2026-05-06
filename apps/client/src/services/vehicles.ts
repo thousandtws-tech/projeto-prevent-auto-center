@@ -9,6 +9,7 @@ export type VehicleStatus = "active" | "inactive";
 
 export type Vehicle = {
   id: string;
+  customerId: string;
   createdAt: string;
   updatedAt: string;
   status: VehicleStatus;
@@ -23,6 +24,7 @@ export type Vehicle = {
 };
 
 export type CreateVehiclePayload = {
+  customerId?: string;
   vehicleModel: string;
   vehicleBrand: string;
   vehiclePlate?: string;
@@ -120,6 +122,9 @@ const normalizeVehicle = (value: unknown): Vehicle | null => {
 
   return {
     id,
+    customerId: getString(
+      getRecordValue(value, "customerId", "customer_id"),
+    ).trim(),
     createdAt: isValidDateString(createdAt) ? createdAt : new Date().toISOString(),
     updatedAt: isValidDateString(updatedAt) ? updatedAt : new Date().toISOString(),
     status: normalizeStatus(getRecordValue(value, "status")),
@@ -201,6 +206,7 @@ const toVehicleBackendPayload = (
   payload: UpdateVehiclePayload,
   current?: Vehicle | null,
 ) => {
+  const customerId = payload.customerId ?? current?.customerId ?? "";
   const vehicleModel = payload.vehicleModel?.trim() ?? current?.vehicleModel ?? "";
   const vehicleBrand = payload.vehicleBrand?.trim() ?? current?.vehicleBrand ?? "";
   const vehiclePlate =
@@ -242,6 +248,7 @@ const toVehicleBackendPayload = (
   }
 
   return {
+    customerId: customerId ? Number(customerId) : undefined,
     model: vehicleModel,
     brand: vehicleBrand,
     plate: vehiclePlate,
@@ -315,6 +322,7 @@ export const createVehicle = (payload: CreateVehiclePayload): Vehicle => {
   const now = new Date().toISOString();
   const vehicle: Vehicle = {
     id: createId(),
+    customerId: payload.customerId?.trim() ?? "",
     createdAt: now,
     updatedAt: now,
     status: payload.status === "inactive" ? "inactive" : "active",
@@ -360,6 +368,7 @@ export const updateVehicle = (
     updated = {
       ...vehicle,
       ...payload,
+      customerId: payload.customerId?.trim() ?? vehicle.customerId,
       status: payload.status ? normalizeStatus(payload.status) : vehicle.status,
       vehicleModel: payload.vehicleModel?.trim() ?? vehicle.vehicleModel,
       vehicleBrand: payload.vehicleBrand?.trim() ?? vehicle.vehicleBrand,

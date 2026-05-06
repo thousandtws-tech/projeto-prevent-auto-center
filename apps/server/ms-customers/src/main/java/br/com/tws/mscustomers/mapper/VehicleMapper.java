@@ -20,6 +20,7 @@ public class VehicleMapper {
 
     public VehicleCommand toCommand(VehicleCreateRequest request) {
         return toCommand(
+                request.getCustomerId(),
                 request.getModel(),
                 request.getBrand(),
                 request.getPlate(),
@@ -32,6 +33,7 @@ public class VehicleMapper {
 
     public VehicleCommand toCommand(VehicleUpdateRequest request) {
         return toCommand(
+                request.getCustomerId(),
                 request.getModel(),
                 request.getBrand(),
                 request.getPlate(),
@@ -44,6 +46,7 @@ public class VehicleMapper {
 
     public VehicleSearchCriteria toSearchCriteria(VehicleSearchRequest request) {
         return VehicleSearchCriteria.builder()
+                .customerId(request.getCustomerId())
                 .modelo(normalizeNullableText(request.getModelo()))
                 .brand(normalizeNullableText(request.getBrand()))
                 .plate(normalizeNullableText(request.getPlate()))
@@ -86,6 +89,7 @@ public class VehicleMapper {
     public VehicleResponse toResponse(VehicleEntity entity) {
         return VehicleResponse.builder()
                 .id(entity.getId())
+                .customerId(entity.getCustomerId())
                 .modelo(entity.getModel())
                 .brand(entity.getBrand())
                 .plate(entity.getPlate())
@@ -111,9 +115,10 @@ public class VehicleMapper {
                 .build();
     }
 
-    private VehicleCommand toCommand(String model, String brand, String plate, String chassisNumber,
+    private VehicleCommand toCommand(Long customerId, String model, String brand, String plate, String chassisNumber,
                                      Long mileage, Long year, String color) {
         return VehicleCommand.builder()
+                .customerId(customerId)
                 .modelo(TextUtils.normalizeWhitespace(model))
                 .brand(TextUtils.normalizeWhitespace(brand))
                 .plate(normalizePlate(plate))

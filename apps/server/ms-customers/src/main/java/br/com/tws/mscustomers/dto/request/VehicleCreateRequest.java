@@ -15,6 +15,9 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VehicleCreateRequest {
+    @Schema(description = "ID do cliente vinculado ao veiculo", example = "1")
+    private Long customerId;
+
     @Schema(description = "Modelo do veiculo", example = "Onix")
     @NotBlank(message = "modelo é obrigatório.")
     @Size(min = 2, max = 60, message = "modelo deve ter entre 2 e 60 caracteres.")

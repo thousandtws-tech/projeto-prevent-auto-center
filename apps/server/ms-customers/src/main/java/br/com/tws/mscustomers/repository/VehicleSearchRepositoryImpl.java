@@ -20,7 +20,7 @@ import java.util.Map;
 public class VehicleSearchRepositoryImpl implements VehicleSearchRepository {
 
     private static final String BASE_SELECT = """
-            SELECT id, workshop_id, modelo, marca, placa, chassi, quilometragem, ano, cor
+            SELECT id, workshop_id, customer_id, modelo, marca, placa, chassi, quilometragem, ano, cor
             FROM vehicles
             """;
 
@@ -44,6 +44,7 @@ public class VehicleSearchRepositoryImpl implements VehicleSearchRepository {
         return executeSpec.map((row, metadata) -> VehicleEntity.builder()
                 .id(row.get("id", Long.class))
                 .workshopId(row.get("workshop_id", Long.class))
+                .customerId(row.get("customer_id", Long.class))
                 .model(row.get("modelo", String.class))
                 .brand(row.get("marca", String.class))
                 .plate(row.get("placa", String.class))
@@ -71,6 +72,11 @@ public class VehicleSearchRepositoryImpl implements VehicleSearchRepository {
 
         clauses.add("workshop_id = :workshopId");
         bindings.put("workshopId", workshopId);
+
+        if (criteria.customerId() != null) {
+            clauses.add("customer_id = :customerId");
+            bindings.put("customerId", criteria.customerId());
+        }
 
         if (StringUtils.hasText(criteria.modelo())) {
             clauses.add("modelo ILIKE :modelo");

@@ -19,6 +19,9 @@ public class VehicleEntity {
     @Column("workshop_id")
     Long workshopId;
 
+    @Column("customer_id")
+    Long customerId;
+
     @NotBlank
     @Column("modelo")
     String model;

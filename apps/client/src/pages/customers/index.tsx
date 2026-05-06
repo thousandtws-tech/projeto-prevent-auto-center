@@ -81,6 +81,29 @@ const DEFAULT_FORM_STATE: CustomerFormState = {
   status: "active",
 };
 
+type CustomerVehicleFormState = {
+  id?: string;
+  vehicleModel: string;
+  vehicleBrand: string;
+  vehiclePlate: string;
+  vehicleChassisNumber: string;
+  vehicleMileage: number;
+  vehicleYear: number;
+  vehicleColor: string;
+};
+
+const DEFAULT_VEHICLE_FORM_STATE: CustomerVehicleFormState = {
+  vehicleModel: "",
+  vehicleBrand: "",
+  vehiclePlate: "",
+  vehicleChassisNumber: "",
+  vehicleMileage: 0,
+  vehicleYear: 0,
+  vehicleColor: "",
+};
+
+const MAX_CUSTOMER_VEHICLES = 2;
+
 const STATUS_META: Record<
   CustomerStatus,
   { label: string; color: "success" | "default" }
@@ -142,7 +165,7 @@ const getBirthdayInfo = (birthDate: string) => {
   };
 };
 
-const hasVehicleData = (formState: CustomerFormState) =>
+const hasVehicleData = (formState: CustomerVehicleFormState) =>
   Boolean(
     formState.vehicleModel.trim() ||
       formState.vehicleBrand.trim() ||
@@ -154,9 +177,17 @@ const hasVehicleData = (formState: CustomerFormState) =>
   );
 
 const findLinkedVehicle = (
-  customer: Pick<Customer, "vehicleModel" | "vehiclePlate">,
+  customer: Pick<Customer, "id" | "vehicleModel" | "vehiclePlate">,
   vehicles: Vehicle[],
 ) => {
+  const matchedByCustomer = vehicles.find(
+    (vehicle) => vehicle.customerId && vehicle.customerId === customer.id,
+  );
+
+  if (matchedByCustomer) {
+    return matchedByCustomer;
+  }
+
   const normalizedPlate = customer.vehiclePlate.trim().toUpperCase();
   if (normalizedPlate) {
     const matchedByPlate = vehicles.find(
@@ -180,6 +211,19 @@ const findLinkedVehicle = (
   );
 };
 
+const getCustomerVehicles = (customer: Customer, vehicles: Vehicle[]) => {
+  const linkedByCustomer = vehicles.filter(
+    (vehicle) => vehicle.customerId && vehicle.customerId === customer.id,
+  );
+
+  if (linkedByCustomer.length) {
+    return linkedByCustomer.slice(0, MAX_CUSTOMER_VEHICLES);
+  }
+
+  const legacyVehicle = findLinkedVehicle(customer, vehicles);
+  return legacyVehicle ? [legacyVehicle] : [];
+};
+
 export const CustomersPage: React.FC = () => {
   const t = useTranslate();
   const { open } = useNotification();
@@ -197,6 +241,9 @@ export const CustomersPage: React.FC = () => {
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [formState, setFormState] =
     useState<CustomerFormState>(DEFAULT_FORM_STATE);
+  const [vehicleForms, setVehicleForms] = useState<CustomerVehicleFormState[]>(
+    [],
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isLookingUpCep, setIsLookingUpCep] = useState(false);
   const [isVehicleSectionOpen, setIsVehicleSectionOpen] = useState(false);
@@ -304,6 +351,19 @@ export const CustomersPage: React.FC = () => {
     }
 
     return customers.filter((customer) => {
+      const linkedVehiclesText = getCustomerVehicles(customer, vehicles)
+        .map((vehicle) =>
+          [
+            vehicle.vehicleModel,
+            vehicle.vehicleBrand,
+            vehicle.vehiclePlate,
+            vehicle.vehicleChassisNumber,
+            vehicle.vehicleColor,
+          ].join(" "),
+        )
+        .join(" ")
+        .toLowerCase();
+
       return (
         customer.name.toLowerCase().includes(query) ||
         customer.phone.toLowerCase().includes(query) ||
@@ -312,6 +372,7 @@ export const CustomersPage: React.FC = () => {
         customer.birthDate.toLowerCase().includes(query) ||
         customer.vehicleModel.toLowerCase().includes(query) ||
         customer.vehiclePlate.toLowerCase().includes(query) ||
+        linkedVehiclesText.includes(query) ||
         customer.address.toLowerCase().includes(query) ||
         customer.cep.toLowerCase().includes(query) ||
         customer.logradouro.toLowerCase().includes(query) ||
@@ -320,7 +381,7 @@ export const CustomersPage: React.FC = () => {
         customer.uf.toLowerCase().includes(query)
       );
     });
-  }, [customers, searchValue]);
+  }, [customers, searchValue, vehicles]);
 
   const summary = useMemo(() => {
     return customers.reduce(
@@ -348,10 +409,47 @@ export const CustomersPage: React.FC = () => {
     }));
   };
 
+  const setVehicleField = <K extends keyof CustomerVehicleFormState>(
+    index: number,
+    field: K,
+    value: CustomerVehicleFormState[K],
+  ) => {
+    setVehicleForms((current) =>
+      current.map((vehicle, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...vehicle,
+              [field]: value,
+            }
+          : vehicle,
+      ),
+    );
+  };
+
+  const addVehicleForm = () => {
+    setIsVehicleSectionOpen(true);
+    setVehicleForms((current) =>
+      current.length >= MAX_CUSTOMER_VEHICLES
+        ? current
+        : [...current, { ...DEFAULT_VEHICLE_FORM_STATE }],
+    );
+  };
+
+  const removeVehicleForm = (index: number) => {
+    setVehicleForms((current) => {
+      const next = current.filter((_, currentIndex) => currentIndex !== index);
+      if (!next.length) {
+        setIsVehicleSectionOpen(false);
+      }
+      return next;
+    });
+  };
+
   const resetForm = () => {
     setEditingCustomerId(null);
     setEditingVehicleId(null);
     setIsVehicleSectionOpen(false);
+    setVehicleForms([]);
     setFormState(DEFAULT_FORM_STATE);
   };
 
@@ -438,30 +536,51 @@ export const CustomersPage: React.FC = () => {
       return "Informe o endereço completo do cliente";
     }
 
-    if (hasVehicleData(formState)) {
-      if (!formState.vehicleModel.trim()) {
-        return "Informe o modelo do veículo";
+    for (const [index, vehicleForm] of vehicleForms.entries()) {
+      if (!hasVehicleData(vehicleForm)) {
+        continue;
       }
 
-      if (!formState.vehicleBrand.trim()) {
-        return "Informe a marca do veículo";
+      const vehicleLabel = vehicleForms.length > 1 ? ` ${index + 1}` : "";
+
+      if (!vehicleForm.vehicleModel.trim()) {
+        return `Informe o modelo do veículo${vehicleLabel}`;
       }
 
-      if (!formState.vehiclePlate.trim()) {
-        return "Informe a placa do veículo";
+      if (!vehicleForm.vehicleBrand.trim()) {
+        return `Informe a marca do veículo${vehicleLabel}`;
       }
 
-      if (!formState.vehicleChassisNumber.trim()) {
-        return "Informe o chassi do veículo";
+      if (!vehicleForm.vehiclePlate.trim()) {
+        return `Informe a placa do veículo${vehicleLabel}`;
       }
 
-      if (customersBackendEnabled && formState.vehicleChassisNumber.trim().length !== 17) {
-        return "Chassi deve ter 17 caracteres";
+      if (!vehicleForm.vehicleChassisNumber.trim()) {
+        return `Informe o chassi do veículo${vehicleLabel}`;
       }
 
-      if ((Number(formState.vehicleYear) || 0) < 1900) {
-        return "Informe um ano de fabricação válido";
+      if (customersBackendEnabled && vehicleForm.vehicleChassisNumber.trim().length !== 17) {
+        return `Chassi do veículo${vehicleLabel} deve ter 17 caracteres`;
       }
+
+      if ((Number(vehicleForm.vehicleYear) || 0) < 1900) {
+        return `Informe um ano de fabricação válido para o veículo${vehicleLabel}`;
+      }
+    }
+
+    const filledVehicleForms = vehicleForms.filter(hasVehicleData);
+    const plates = filledVehicleForms
+      .map((vehicleForm) => vehicleForm.vehiclePlate.trim().toUpperCase())
+      .filter(Boolean);
+    if (new Set(plates).size !== plates.length) {
+      return "Informe placas diferentes para os veículos do cliente";
+    }
+
+    const chassisNumbers = filledVehicleForms
+      .map((vehicleForm) => vehicleForm.vehicleChassisNumber.trim().toUpperCase())
+      .filter(Boolean);
+    if (new Set(chassisNumbers).size !== chassisNumbers.length) {
+      return "Informe chassis diferentes para os veículos do cliente";
     }
 
     return null;
@@ -506,22 +625,19 @@ export const CustomersPage: React.FC = () => {
 
     try {
       setIsSaving(true);
+      const filledVehicleForms = vehicleForms.filter(hasVehicleData);
+      const primaryVehicle = filledVehicleForms[0] ?? DEFAULT_VEHICLE_FORM_STATE;
       const payload = {
         ...formState,
+        vehicleModel: primaryVehicle.vehicleModel,
+        vehicleBrand: primaryVehicle.vehicleBrand,
+        vehiclePlate: primaryVehicle.vehiclePlate,
+        vehicleChassisNumber: primaryVehicle.vehicleChassisNumber,
+        vehicleMileage: primaryVehicle.vehicleMileage,
+        vehicleYear: primaryVehicle.vehicleYear,
+        vehicleColor: primaryVehicle.vehicleColor,
         address: addressPreview || formState.address.trim(),
       };
-
-      const vehiclePayload = hasVehicleData(formState)
-        ? {
-            vehicleModel: formState.vehicleModel,
-            vehicleBrand: formState.vehicleBrand,
-            vehiclePlate: formState.vehiclePlate,
-            vehicleChassisNumber: formState.vehicleChassisNumber,
-            vehicleMileage: formState.vehicleMileage,
-            vehicleYear: formState.vehicleYear,
-            vehicleColor: formState.vehicleColor,
-          }
-        : null;
 
       let savedCustomer: Customer | null = null;
 
@@ -544,14 +660,20 @@ export const CustomersPage: React.FC = () => {
         throw new Error("Não foi possível persistir o cliente.");
       }
 
-      if (vehiclePayload) {
-        const linkedVehicle =
-          (editingVehicleId
-            ? vehicles.find((vehicle) => vehicle.id === editingVehicleId) ?? null
-            : null) ?? findLinkedVehicle(savedCustomer, vehicles);
+      for (const vehicleForm of filledVehicleForms) {
+        const vehiclePayload = {
+          customerId: savedCustomer.id,
+          vehicleModel: vehicleForm.vehicleModel,
+          vehicleBrand: vehicleForm.vehicleBrand,
+          vehiclePlate: vehicleForm.vehiclePlate,
+          vehicleChassisNumber: vehicleForm.vehicleChassisNumber,
+          vehicleMileage: vehicleForm.vehicleMileage,
+          vehicleYear: vehicleForm.vehicleYear,
+          vehicleColor: vehicleForm.vehicleColor,
+        };
 
-        const savedVehicle = linkedVehicle?.id
-          ? await updateVehicleApi(linkedVehicle.id, vehiclePayload)
+        const savedVehicle = vehicleForm.id
+          ? await updateVehicleApi(vehicleForm.id, vehiclePayload)
           : await createVehicleApi(vehiclePayload);
 
         if (!savedVehicle) {
@@ -566,7 +688,9 @@ export const CustomersPage: React.FC = () => {
         message:
           editingCustomerId || editingVehicleId
             ? "Cliente e veículo salvos com sucesso"
-            : "Cliente e veículo cadastrados com sucesso",
+            : filledVehicleForms.length > 1
+              ? "Cliente e veículos cadastrados com sucesso"
+              : "Cliente e veículo cadastrado com sucesso",
       });
       resetForm();
     } catch (error) {
@@ -584,13 +708,36 @@ export const CustomersPage: React.FC = () => {
 
   const handleEdit = (customer: Customer) => {
     setEditingCustomerId(customer.id);
-    const linkedVehicle = findLinkedVehicle(customer, vehicles);
+    const linkedVehicles = getCustomerVehicles(customer, vehicles);
+    const linkedVehicle = linkedVehicles[0] ?? null;
     setEditingVehicleId(linkedVehicle?.id ?? null);
+    setVehicleForms(
+      linkedVehicles.length
+        ? linkedVehicles.map((vehicle) => ({
+            id: vehicle.id,
+            vehicleModel: vehicle.vehicleModel,
+            vehicleBrand: vehicle.vehicleBrand,
+            vehiclePlate: vehicle.vehiclePlate,
+            vehicleChassisNumber: vehicle.vehicleChassisNumber,
+            vehicleMileage: vehicle.vehicleMileage,
+            vehicleYear: vehicle.vehicleYear,
+            vehicleColor: vehicle.vehicleColor,
+          }))
+        : customer.vehicleModel.trim() || customer.vehiclePlate.trim()
+          ? [
+              {
+                ...DEFAULT_VEHICLE_FORM_STATE,
+                vehicleModel: customer.vehicleModel,
+                vehiclePlate: customer.vehiclePlate,
+              },
+            ]
+          : [],
+    );
     setIsVehicleSectionOpen(
       Boolean(
         customer.vehicleModel.trim() ||
           customer.vehiclePlate.trim() ||
-          linkedVehicle,
+          linkedVehicles.length,
       ),
     );
     setFormState({
@@ -620,22 +767,7 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleOpenVehicleSection = () => {
-    setIsVehicleSectionOpen(true);
-  };
-
-  const handleCloseVehicleSection = () => {
-    setEditingVehicleId(null);
-    setIsVehicleSectionOpen(false);
-    setFormState((current) => ({
-      ...current,
-      vehicleModel: "",
-      vehicleBrand: "",
-      vehiclePlate: "",
-      vehicleChassisNumber: "",
-      vehicleMileage: 0,
-      vehicleYear: 0,
-      vehicleColor: "",
-    }));
+    addVehicleForm();
   };
 
   const handleDelete = async (customer: Customer) => {
@@ -832,7 +964,7 @@ export const CustomersPage: React.FC = () => {
 
                 <Divider />
 
-                {isVehicleSectionOpen ? (
+                {isVehicleSectionOpen && vehicleForms.length ? (
                   <Stack spacing={2}>
                     <Stack
                       direction="row"
@@ -844,108 +976,150 @@ export const CustomersPage: React.FC = () => {
                       <Stack direction="row" spacing={1} alignItems="center">
                         <DirectionsCarFilledOutlinedIcon fontSize="small" />
                         <Typography variant="subtitle2">
-                          Veículo principal
+                          Veículos do cliente
                         </Typography>
                       </Stack>
-                      <Button
-                        type="button"
-                        variant="text"
-                        color="inherit"
-                        startIcon={<CloseOutlinedIcon />}
-                        onClick={handleCloseVehicleSection}
-                        sx={{ textTransform: "none" }}
-                      >
-                        Remover veículo
-                      </Button>
+                      {vehicleForms.length < MAX_CUSTOMER_VEHICLES ? (
+                        <Button
+                          type="button"
+                          variant="outlined"
+                          size="small"
+                          startIcon={<DirectionsCarFilledOutlinedIcon />}
+                          onClick={addVehicleForm}
+                          sx={{ textTransform: "none" }}
+                        >
+                          Adicionar outro veículo
+                        </Button>
+                      ) : null}
                     </Stack>
 
-                    <Grid container columns={12} spacing={1.5}>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField
-                          label="Modelo"
-                          value={formState.vehicleModel}
-                          onChange={(event) =>
-                            setField("vehicleModel", event.target.value)
-                          }
-                          size="small"
-                          fullWidth
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField
-                          label="Marca"
-                          value={formState.vehicleBrand}
-                          onChange={(event) =>
-                            setField("vehicleBrand", event.target.value)
-                          }
-                          size="small"
-                          fullWidth
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <TextField
-                          label="Placa"
-                          value={formState.vehiclePlate}
-                          onChange={(event) =>
-                            setField("vehiclePlate", event.target.value.toUpperCase())
-                          }
-                          size="small"
-                          fullWidth
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <TextField
-                          label="Chassi"
-                          value={formState.vehicleChassisNumber}
-                          onChange={(event) =>
-                            setField("vehicleChassisNumber", event.target.value)
-                          }
-                          size="small"
-                          fullWidth
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <TextField
-                          label="Cor"
-                          value={formState.vehicleColor}
-                          onChange={(event) =>
-                            setField("vehicleColor", event.target.value)
-                          }
-                          size="small"
-                          fullWidth
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField
-                          label="Ano"
-                          type="number"
-                          value={formState.vehicleYear || ""}
-                          onChange={(event) =>
-                            setField(
-                              "vehicleYear",
-                              Math.max(0, Number(event.target.value) || 0),
-                            )
-                          }
-                          size="small"
-                          fullWidth
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField
-                          label="Quilometragem"
-                          type="number"
-                          value={formState.vehicleMileage || ""}
-                          onChange={(event) =>
-                            setField(
-                              "vehicleMileage",
-                              Math.max(0, Number(event.target.value) || 0),
-                            )
-                          }
-                          size="small"
-                          fullWidth
-                        />
-                      </Grid>
-                    </Grid>
+                    {vehicleForms.map((vehicleForm, index) => (
+                      <Stack
+                        key={vehicleForm.id ?? `new-vehicle-${index}`}
+                        spacing={1.5}
+                        sx={{
+                          p: 1.5,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          borderRadius: 2,
+                        }}
+                      >
+                        <Stack
+                          direction="row"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          spacing={1}
+                        >
+                          <Typography variant="caption" fontWeight={700}>
+                            Veículo {index + 1}
+                          </Typography>
+                          <Button
+                            type="button"
+                            variant="text"
+                            color="inherit"
+                            size="small"
+                            startIcon={<CloseOutlinedIcon />}
+                            onClick={() => removeVehicleForm(index)}
+                            sx={{ textTransform: "none" }}
+                          >
+                            Remover
+                          </Button>
+                        </Stack>
+                        <Grid container columns={12} spacing={1.5}>
+                          <Grid size={{ xs: 12, sm: 6 }}>
+                            <TextField
+                              label="Modelo"
+                              value={vehicleForm.vehicleModel}
+                              onChange={(event) =>
+                                setVehicleField(index, "vehicleModel", event.target.value)
+                              }
+                              size="small"
+                              fullWidth
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, sm: 6 }}>
+                            <TextField
+                              label="Marca"
+                              value={vehicleForm.vehicleBrand}
+                              onChange={(event) =>
+                                setVehicleField(index, "vehicleBrand", event.target.value)
+                              }
+                              size="small"
+                              fullWidth
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, sm: 4 }}>
+                            <TextField
+                              label="Placa"
+                              value={vehicleForm.vehiclePlate}
+                              onChange={(event) =>
+                                setVehicleField(
+                                  index,
+                                  "vehiclePlate",
+                                  event.target.value.toUpperCase(),
+                                )
+                              }
+                              size="small"
+                              fullWidth
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, sm: 4 }}>
+                            <TextField
+                              label="Chassi"
+                              value={vehicleForm.vehicleChassisNumber}
+                              onChange={(event) =>
+                                setVehicleField(index, "vehicleChassisNumber", event.target.value)
+                              }
+                              size="small"
+                              fullWidth
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, sm: 4 }}>
+                            <TextField
+                              label="Cor"
+                              value={vehicleForm.vehicleColor}
+                              onChange={(event) =>
+                                setVehicleField(index, "vehicleColor", event.target.value)
+                              }
+                              size="small"
+                              fullWidth
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, sm: 6 }}>
+                            <TextField
+                              label="Ano"
+                              type="number"
+                              value={vehicleForm.vehicleYear || ""}
+                              onChange={(event) =>
+                                setVehicleField(
+                                  index,
+                                  "vehicleYear",
+                                  Math.max(0, Number(event.target.value) || 0),
+                                )
+                              }
+                              size="small"
+                              fullWidth
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, sm: 6 }}>
+                            <TextField
+                              label="Quilometragem"
+                              type="number"
+                              value={vehicleForm.vehicleMileage || ""}
+                              onChange={(event) =>
+                                setVehicleField(
+                                  index,
+                                  "vehicleMileage",
+                                  Math.max(0, Number(event.target.value) || 0),
+                                )
+                              }
+                              size="small"
+                              fullWidth
+                            />
+                          </Grid>
+                        </Grid>
+                      </Stack>
+                    ))}
                   </Stack>
                 ) : (
                   <Button
@@ -1202,6 +1376,16 @@ export const CustomersPage: React.FC = () => {
                     const statusMeta = STATUS_META[customer.status];
                     const canActivate = customer.status === "inactive";
                     const birthdayInfo = getBirthdayInfo(customer.birthDate);
+                    const customerVehicles = getCustomerVehicles(customer, vehicles);
+                    const primaryVehicle = customerVehicles[0] ?? null;
+                    const vehicleSummary = primaryVehicle
+                      ? [
+                          primaryVehicle.vehicleModel,
+                          primaryVehicle.vehiclePlate,
+                        ].filter(Boolean).join(" • ")
+                      : [customer.vehicleModel, customer.vehiclePlate]
+                          .filter(Boolean)
+                          .join(" • ");
 
                     return (
                       <TableRow
@@ -1266,16 +1450,21 @@ export const CustomersPage: React.FC = () => {
                             <Typography variant="body2">
                               {customersBackendEnabled
                                 ? formatCustomerAddress(customer) || "-"
-                                : customer.vehicleModel || "-"}
+                                : vehicleSummary || "-"}
                             </Typography>
                             {customersBackendEnabled ? (
                               <Typography
                                 variant="caption"
                                 color="text.secondary"
                               >
-                                {[customer.bairro, customer.cidade, customer.uf]
-                                  .filter(Boolean)
-                                  .join(" • ") || formatCep(customer.cep) || "-"}
+                                {customerVehicles.length
+                                  ? `${customerVehicles.length} veículo(s): ${customerVehicles
+                                      .map((vehicle) => vehicle.vehiclePlate || vehicle.vehicleModel)
+                                      .filter(Boolean)
+                                      .join(", ")}`
+                                  : [customer.bairro, customer.cidade, customer.uf]
+                                      .filter(Boolean)
+                                      .join(" • ") || formatCep(customer.cep) || "-"}
                               </Typography>
                             ) : (
                               <Typography
