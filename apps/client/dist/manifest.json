@@ -1,0 +1,53 @@
+{
+  "id": "/",
+  "short_name": "Prevent Auto",
+  "name": "Prevent Auto Mecânica",
+  "description": "Sistema de gestão para oficina mecânica com clientes, veículos, ordens de serviço, agendamentos e assinaturas.",
+  "icons": [
+    {
+      "src": "/logo-branco.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-branco.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "portrait",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "utilities"],
+  "theme_color": "#050505",
+  "background_color": "#050505",
+  "shortcuts": [
+    {
+      "name": "Clientes",
+      "short_name": "Clientes",
+      "url": "/clientes"
+    },
+    {
+      "name": "Ordem de Serviço",
+      "short_name": "OS",
+      "url": "/ordem-servico"
+    },
+    {
+      "name": "Agendamentos",
+      "short_name": "Agenda",
+      "url": "/agendamentos"
+    }
+  ]
+}

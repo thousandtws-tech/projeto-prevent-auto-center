@@ -1,0 +1,45 @@
+services:
+  prevent-monolith:
+    build:
+      context: ../../apps/server
+      dockerfile: ../../infra/docker/Dockerfile
+      args:
+        MODULE: ${MODULE:-prevent-monolith}
+    image: ${IMAGE_PREFIX:-local}/prevent-monolith:${IMAGE_TAG:-dev}
+    container_name: prevent-monolith
+    environment:
+      SERVER_PORT: 9090
+      DB_HOST: ${DB_HOST:-}
+      DB_PORT: ${DB_PORT:-}
+      DB_NAME: ${DB_NAME:-}
+      DB_USERNAME: ${DB_USERNAME:-}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_SSL_MODE: ${DB_SSL_MODE:-}
+      DB_CHANNEL_BINDING: ${DB_CHANNEL_BINDING:-}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-change-me}
+      CORS_ALLOWED_ORIGIN_PATTERNS: ${CORS_ALLOWED_ORIGIN_PATTERNS:-http://localhost:5173,http://127.0.0.1:5173,https://projeto-prevent-auto-mecanica-clien.vercel.app,https://*.vercel.app}
+      CLOUDINARY_ENABLED: ${CLOUDINARY_ENABLED:-false}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      CLOUDINARY_BASE_FOLDER: ${CLOUDINARY_BASE_FOLDER:-prevent-auto-mecanica}
+      CLOUDINARY_MAX_FILE_SIZE: ${CLOUDINARY_MAX_FILE_SIZE:-5MB}
+      SERVICE_ORDERS_PUBLIC_SIGNATURE_BASE_URL: ${SERVICE_ORDERS_PUBLIC_SIGNATURE_BASE_URL:-http://localhost:5173/assinatura-os}
+    ports:
+      - "${BACKEND_HOST_PORT:-9090}:9090"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:$${SERVER_PORT}/actuator/health/readiness | grep '\"status\":\"UP\"' || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 35s
+    networks:
+      - prevent-network
+
+networks:
+  prevent-network:
+    name: prevent-network

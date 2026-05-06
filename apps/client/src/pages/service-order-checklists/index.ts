@@ -1,0 +1,1 @@
+export { ServiceOrderChecklistsPage } from "./page";

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmar e-mail</title>
+</head>
+<body style="margin:0;padding:0;background:#050505;font-family:Arial,sans-serif;color:#fff9e8;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#050505;padding:32px 16px;">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#111111;border:1px solid rgba(245,215,0,0.35);border-radius:24px;overflow:hidden;">
+                <tr>
+                    <td style="padding:40px 40px 24px 40px;background:linear-gradient(180deg,#0b0b0b 0%,#111111 100%);">
+                        <div style="color:#f8c400;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:20px;">
+                            Prevent Auto Center
+                        </div>
+                        <div style="font-size:36px;line-height:1.15;font-weight:700;color:#fff9e8;margin-bottom:16px;">
+                            Confirme seu e-mail para ativar a oficina.
+                        </div>
+                        <div style="font-size:16px;line-height:1.7;color:rgba(255,249,232,0.84);">
+                            Ola, <strong th:text="${ownerName}">Administrador</strong>. Seu cadastro da oficina
+                            <strong th:text="${workshopName}">Prevent</strong> foi criado e precisa de confirmacao
+                            para liberar o primeiro acesso.
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:0 40px 40px 40px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#090909;border:1px solid rgba(245,215,0,0.18);border-radius:20px;">
+                            <tr>
+                                <td style="padding:28px 28px 24px 28px;">
+                                    <div style="font-size:14px;line-height:1.7;color:#bda85a;margin-bottom:20px;">
+                                        Use o codigo abaixo na tela de validacao do sistema para confirmar seu e-mail.
+                                        Este codigo expira em <strong th:text="${expirationLabel}">24 horas</strong>.
+                                    </div>
+                                    <div style="display:inline-block;background:#050505;border:1px solid rgba(245,215,0,0.3);border-radius:16px;padding:18px 26px;font-size:34px;letter-spacing:0.24em;font-weight:700;color:#ffec00;">
+                                        <span th:text="${verificationCode}">482913</span>
+                                    </div>
+                                    <div style="margin-top:24px;font-size:13px;line-height:1.7;color:rgba(255,249,232,0.64);">
+                                        Digite esse codigo exatamente como exibido na tela de verificacao da conta.
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>
