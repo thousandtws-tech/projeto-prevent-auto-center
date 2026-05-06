@@ -23,6 +23,7 @@ import Typography from "@mui/material/Typography";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import AutorenewOutlinedIcon from "@mui/icons-material/AutorenewOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
@@ -50,6 +51,7 @@ import {
   type ServiceOrderInsight,
 } from "../../services/serviceOrderGemini";
 import { Card, RefineListView } from "../../components";
+import { useNavigate } from "react-router";
 
 type HistoryRow = ServiceOrderRecord & {
   status: ServiceOrderRecordStatus;
@@ -204,6 +206,7 @@ const getSearchableText = (row: HistoryRow) =>
 export const ServiceOrderHistoryPage: React.FC = () => {
   const t = useTranslate();
   const { open } = useNotification();
+  const navigate = useNavigate();
   const serviceOrdersBackendEnabled = isServiceOrdersBackendEnabled();
 
   const [records, setRecords] = useState<ServiceOrderRecord[]>([]);
@@ -948,6 +951,25 @@ export const ServiceOrderHistoryPage: React.FC = () => {
                             flexWrap="wrap"
                             useFlexGap
                           >
+                            <Button
+                              size="small"
+                              variant="text"
+                              color="primary"
+                              onClick={() =>
+                                navigate(
+                                  `/ordem-servico?serviceOrderId=${encodeURIComponent(row.id)}`,
+                                )
+                              }
+                              startIcon={<EditOutlinedIcon fontSize="small" />}
+                              sx={{
+                                textTransform: "none",
+                                whiteSpace: "nowrap",
+                                minHeight: 32,
+                                alignItems: "center",
+                              }}
+                            >
+                              Editar
+                            </Button>
                             <Button
                               size="small"
                               variant="text"

@@ -542,6 +542,35 @@ export const listServiceOrdersApi = async (): Promise<ServiceOrderRecord[]> => {
   return normalized;
 };
 
+export const getServiceOrderApi = async (
+  id: string,
+): Promise<ServiceOrderRecord | null> => {
+  if (!id) {
+    return null;
+  }
+
+  const cached = readServiceOrders().find((item) => item.id === id);
+
+  if (!isServiceOrdersBackendEnabled()) {
+    return cached ?? null;
+  }
+
+  const response = await requestJson<unknown>(
+    `service-orders/${encodeURIComponent(id)}`,
+    {
+      method: "GET",
+    },
+  );
+  const normalized = normalizeServiceOrder(extractRecordData(response));
+
+  if (normalized) {
+    upsertServiceOrderCache(normalized);
+    return normalized;
+  }
+
+  return cached ?? null;
+};
+
 export const createServiceOrderApi = async (
   payload: CreateServiceOrderPayload,
 ): Promise<ServiceOrderRecord> => {

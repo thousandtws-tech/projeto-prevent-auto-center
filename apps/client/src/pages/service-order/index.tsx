@@ -75,9 +75,13 @@ import {
 } from "../../services/vehicles";
 import {
   createServiceOrderApi,
+  getServiceOrderApi,
   isServiceOrdersBackendEnabled,
   shareServiceOrderApi,
+  updateServiceOrderApi,
+  type CreateServiceOrderPayload,
   type ServiceOrderPartStatus,
+  type ServiceOrderRecord,
 } from "../../services/serviceOrders";
 import {
   SERVICE_ORDER_CATALOG_STORAGE_KEY,
@@ -437,6 +441,10 @@ export const ServiceOrderPage: React.FC = () => {
   const vehiclesBackendEnabled = isVehiclesBackendEnabled();
   const serviceOrdersBackendEnabled = isServiceOrdersBackendEnabled();
   const [searchParams, setSearchParams] = useSearchParams();
+  const customerIdFromQuery = searchParams.get("customerId")?.trim() ?? "";
+  const appointmentIdFromQuery = searchParams.get("appointmentId")?.trim() ?? "";
+  const serviceOrderIdFromQuery = searchParams.get("serviceOrderId")?.trim() ?? "";
+  const isEditingServiceOrder = Boolean(serviceOrderIdFromQuery);
   const [initialDraft] = useState(() => readServiceOrderDraft());
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState(
     () => readAppSettings().branding.sidebarLogoUrl,
@@ -470,6 +478,10 @@ export const ServiceOrderPage: React.FC = () => {
   const [generatedSignatureLink, setGeneratedSignatureLink] = useState("");
   const [generatedSignatureToken, setGeneratedSignatureToken] = useState("");
   const [isSavingServiceOrder, setIsSavingServiceOrder] = useState(false);
+  const [editingServiceOrder, setEditingServiceOrder] =
+    useState<ServiceOrderRecord | null>(null);
+  const [isLoadingServiceOrderForEdit, setIsLoadingServiceOrderForEdit] =
+    useState(false);
   const [linkedAppointment, setLinkedAppointment] =
     useState<SchedulingAppointment | null>(null);
   const [isLoadingLinkedAppointment, setIsLoadingLinkedAppointment] =
@@ -506,6 +518,10 @@ export const ServiceOrderPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (isEditingServiceOrder) {
+      return;
+    }
+
     writeServiceOrderDraft({
       orderInfo,
       checklist,
@@ -521,6 +537,7 @@ export const ServiceOrderPage: React.FC = () => {
     orderInfo,
     parts,
     thirdPartyServices,
+    isEditingServiceOrder,
   ]);
 
   useEffect(() => {
@@ -884,12 +901,73 @@ export const ServiceOrderPage: React.FC = () => {
     () => buildChecklistEntries(registeredChecklists, checklist),
     [registeredChecklists, checklist],
   );
-  const customerIdFromQuery = searchParams.get("customerId")?.trim() ?? "";
-  const appointmentIdFromQuery = searchParams.get("appointmentId")?.trim() ?? "";
 
   useEffect(() => {
     setChecklist((previous) => buildChecklistState(registeredChecklists, previous));
   }, [registeredChecklists]);
+
+  useEffect(() => {
+    if (!serviceOrderIdFromQuery) {
+      setEditingServiceOrder(null);
+      return;
+    }
+
+    if (editingServiceOrder?.id === serviceOrderIdFromQuery) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const hydrateServiceOrderForEdit = async () => {
+      try {
+        setIsLoadingServiceOrderForEdit(true);
+
+        const serviceOrder = await getServiceOrderApi(serviceOrderIdFromQuery);
+        if (!serviceOrder || isCancelled) {
+          if (!isCancelled) {
+            open?.({
+              type: "error",
+              message: "Ordem de serviço não encontrada",
+            });
+          }
+          return;
+        }
+
+        setEditingServiceOrder(serviceOrder);
+        setOrderInfo(serviceOrder.orderInfo);
+        setChecklist(serviceOrder.checklist);
+        setParts(serviceOrder.parts);
+        setLaborServices(serviceOrder.laborServices);
+        setThirdPartyServices(serviceOrder.thirdPartyServices);
+        setDiscount(serviceOrder.discount);
+        setGeneratedSignatureToken(serviceOrder.signature?.token ?? "");
+        setGeneratedSignatureLink(serviceOrder.signature?.link ?? "");
+        setSelectedCustomerId(null);
+        setSelectedVehicleId(null);
+        clearServiceOrderDraft();
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        open?.({
+          type: "error",
+          message: "Falha ao carregar OS para edição",
+          description: getErrorMessage(error),
+        });
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingServiceOrderForEdit(false);
+        }
+      }
+    };
+
+    void hydrateServiceOrderForEdit();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [editingServiceOrder?.id, open, serviceOrderIdFromQuery]);
 
   useEffect(() => {
     if (!customerIdFromQuery) {
@@ -1465,11 +1543,11 @@ export const ServiceOrderPage: React.FC = () => {
 
       const wantsSignatureLink = Boolean(generatedSignatureToken);
 
-      const createdOrder = await createServiceOrderApi({
+      const serviceOrderPayload: CreateServiceOrderPayload = {
         status:
           wantsSignatureLink && !serviceOrdersBackendEnabled
             ? "sent_for_signature"
-            : "registered",
+            : editingServiceOrder?.status ?? "registered",
         orderInfo,
         checklist,
         parts,
@@ -1492,13 +1570,21 @@ export const ServiceOrderPage: React.FC = () => {
               signedAt: "",
             }
           : null,
-      });
+      };
+
+      const savedOrder = isEditingServiceOrder
+        ? await updateServiceOrderApi(serviceOrderIdFromQuery, serviceOrderPayload)
+        : await createServiceOrderApi(serviceOrderPayload);
+
+      if (!savedOrder) {
+        throw new Error("Não foi possível salvar a ordem de serviço.");
+      }
 
       let finalSignatureLink = generatedSignatureLink;
       let finalSignatureToken = generatedSignatureToken;
 
       if (serviceOrdersBackendEnabled && wantsSignatureLink) {
-        const sharedOrder = await shareServiceOrderApi(createdOrder.id);
+        const sharedOrder = await shareServiceOrderApi(savedOrder.id);
         finalSignatureLink = sharedOrder.link;
         finalSignatureToken = sharedOrder.token;
         setGeneratedSignatureLink(sharedOrder.link);
@@ -1509,14 +1595,14 @@ export const ServiceOrderPage: React.FC = () => {
         }
       }
 
-      if (appointmentIdFromQuery) {
+      if (!isEditingServiceOrder && appointmentIdFromQuery) {
         try {
           const updatedAppointment = await patchSchedulingAppointmentApi(
             appointmentIdFromQuery,
             {
               mechanicResponsible: orderInfo.mechanicResponsible,
               serviceOrder: {
-                id: createdOrder.id,
+                id: savedOrder.id,
                 orderNumber: orderInfo.orderNumber,
               },
             },
@@ -1540,14 +1626,19 @@ export const ServiceOrderPage: React.FC = () => {
 
       open?.({
         type: "success",
-        message: "Ordem de serviço cadastrada",
+        message: isEditingServiceOrder
+          ? "Ordem de serviço atualizada"
+          : "Ordem de serviço cadastrada",
         description:
           serviceOrdersBackendEnabled && finalSignatureToken && finalSignatureLink
-            ? `OS ${orderInfo.orderNumber || "-"} registrada e link de assinatura copiado.`
-            : `OS ${orderInfo.orderNumber || "-"} registrada com sucesso.`,
+            ? `OS ${orderInfo.orderNumber || "-"} salva e link de assinatura copiado.`
+            : `OS ${orderInfo.orderNumber || "-"} salva com sucesso.`,
       });
       clearServiceOrderDraft();
       closeReview();
+      if (isEditingServiceOrder) {
+        navigate("/ordem-servico/historico");
+      }
     } catch (error) {
       const status =
         typeof error === "object" && error !== null && "status" in error
@@ -1566,7 +1657,9 @@ export const ServiceOrderPage: React.FC = () => {
 
       open?.({
         type: "error",
-        message: "Erro ao cadastrar ordem de serviço",
+        message: isEditingServiceOrder
+          ? "Erro ao atualizar ordem de serviço"
+          : "Erro ao cadastrar ordem de serviço",
         description: getErrorMessage(error),
       });
     } finally {
@@ -1665,7 +1758,11 @@ export const ServiceOrderPage: React.FC = () => {
 
   return (
     <RefineListView
-      title={t("serviceOrder.title", "Ordem de Serviço")}
+      title={
+        isEditingServiceOrder
+          ? `Editar Ordem de Serviço${editingServiceOrder?.orderInfo.orderNumber ? ` #${editingServiceOrder.orderInfo.orderNumber}` : ""}`
+          : t("serviceOrder.title", "Ordem de Serviço")
+      }
       headerButtons={() => (
         <Stack direction="row" spacing={1} flexWrap="wrap">
           <Button
@@ -1703,8 +1800,15 @@ export const ServiceOrderPage: React.FC = () => {
           >
             Serviços Recusados
           </Button>
-          <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={openReview}>
-            {t("serviceOrder.register", "Cadastrar OS")}
+          <Button
+            variant="contained"
+            startIcon={<SaveOutlinedIcon />}
+            onClick={openReview}
+            disabled={isLoadingServiceOrderForEdit}
+          >
+            {isEditingServiceOrder
+              ? "Salvar edição"
+              : t("serviceOrder.register", "Cadastrar OS")}
           </Button>
         </Stack>
       )}
@@ -1724,6 +1828,13 @@ export const ServiceOrderPage: React.FC = () => {
                   : linkedAppointment
                     ? `OS vinculada ao agendamento de ${linkedAppointment.customer.name || "cliente"} em ${new Date(linkedAppointment.schedule.startAt).toLocaleString("pt-BR")}.`
                     : "Agendamento informado na URL não foi encontrado."}
+              </Alert>
+            ) : null}
+            {isEditingServiceOrder ? (
+              <Alert severity={isLoadingServiceOrderForEdit ? "info" : "success"}>
+                {isLoadingServiceOrderForEdit
+                  ? "Carregando a ordem de serviço para edição."
+                  : "Modo edição ativo. As alterações serão gravadas na OS existente."}
               </Alert>
             ) : null}
             <Card
@@ -3692,7 +3803,9 @@ export const ServiceOrderPage: React.FC = () => {
             }}
             disabled={isSavingServiceOrder}
           >
-            {t("serviceOrder.confirm", "Confirmar Cadastro")}
+            {isEditingServiceOrder
+              ? "Confirmar edição"
+              : t("serviceOrder.confirm", "Confirmar Cadastro")}
           </Button>
         </DialogActions>
       </Dialog>
