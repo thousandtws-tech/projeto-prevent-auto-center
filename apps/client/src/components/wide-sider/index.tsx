@@ -43,6 +43,74 @@ const HIDDEN_SCROLLBAR_SX = {
   },
 } as const;
 
+const findSelectedAncestorKeys = (
+  items: TreeMenuItem[],
+  selected?: string,
+): string[] => {
+  if (!selected) {
+    return [];
+  }
+
+  for (const item of items) {
+    const key = item.key || "";
+
+    if (key === selected) {
+      return [];
+    }
+
+    const childAncestorKeys = findSelectedAncestorKeys(item.children, selected);
+    const hasSelectedChild = item.children.some((child) => child.key === selected);
+
+    if (childAncestorKeys.length > 0 || hasSelectedChild) {
+      return [key, ...childAncestorKeys];
+    }
+  }
+
+  return [];
+};
+
+const normalizeRoutePath = (route?: string) => {
+  if (!route) {
+    return "";
+  }
+
+  const [path] = route.split(/[?#]/);
+  const normalizedPath =
+    path.endsWith("/") && path !== "/" ? path.slice(0, -1) : path;
+
+  return normalizedPath || "/";
+};
+
+const findRouteAncestorKeys = (
+  items: TreeMenuItem[],
+  pathname: string,
+  ancestors: string[] = [],
+): string[] => {
+  let activeAncestorKeys: string[] = [];
+  const normalizedPathname = normalizeRoutePath(pathname);
+
+  for (const item of items) {
+    const key = item.key || "";
+    const nextAncestors = key ? [...ancestors, key] : ancestors;
+
+    if (normalizeRoutePath(item.route) === normalizedPathname) {
+      activeAncestorKeys = ancestors;
+    }
+
+    const childAncestorKeys = findRouteAncestorKeys(
+      item.children,
+      normalizedPathname,
+      nextAncestors,
+    );
+
+    if (childAncestorKeys.length > 0) {
+      activeAncestorKeys = childAncestorKeys;
+    }
+  }
+
+  return activeAncestorKeys;
+};
+
 export const WideSider: React.FC<RefineThemedLayoutSiderProps> = ({
   Title: TitleFromProps,
   render,
@@ -77,8 +145,20 @@ export const WideSider: React.FC<RefineThemedLayoutSiderProps> = ({
   const defaultOpenKeySignature = defaultOpenKeys.join("|");
 
   React.useEffect(() => {
+    const routeAncestorKeys = findRouteAncestorKeys(menuItems, location.pathname);
+    const selectedAncestorKeys = findSelectedAncestorKeys(menuItems, selectedKey);
+    let selectedOpenKeys = defaultOpenKeys;
+
+    if (selectedAncestorKeys.length > 0) {
+      selectedOpenKeys = selectedAncestorKeys;
+    }
+
+    if (routeAncestorKeys.length > 0) {
+      selectedOpenKeys = routeAncestorKeys;
+    }
+
     const routeOpen = siderItemsAreCollapsed
-      ? Object.fromEntries(defaultOpenKeys.map((key) => [key, true]))
+      ? Object.fromEntries(selectedOpenKeys.map((key) => [key, true]))
       : Object.fromEntries(
           menuKeySignature
             .split("|")
@@ -105,6 +185,7 @@ export const WideSider: React.FC<RefineThemedLayoutSiderProps> = ({
     defaultOpenKeySignature,
     location.pathname,
     menuKeySignature,
+    selectedKey,
     siderItemsAreCollapsed,
     setMobileSiderOpen,
   ]);
