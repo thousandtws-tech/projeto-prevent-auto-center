@@ -47,7 +47,10 @@ public class FinancialController {
     public Flux<FinancialTransactionResponse> listTransactions() {
         return authenticatedWorkshopService.getRequiredWorkshopId()
                 .flatMapMany(transactionRepository::findAllByWorkshopId)
-                .sort(Comparator.comparing(FinancialTransactionEntity::getUpdatedAt).reversed())
+                .sort(Comparator.comparing(
+                        FinancialTransactionEntity::getUpdatedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())
+                ).reversed())
                 .map(this::toResponse);
     }
 
@@ -216,10 +219,10 @@ public class FinancialController {
 
     private String normalizeType(String value) {
         String normalized = normalizeNullableText(value);
-        if ("expense".equalsIgnoreCase(normalized)) {
+        if ("expense".equalsIgnoreCase(normalized) || "despesa".equalsIgnoreCase(normalized)) {
             return "expense";
         }
-        if ("income".equalsIgnoreCase(normalized)) {
+        if ("income".equalsIgnoreCase(normalized) || "receita".equalsIgnoreCase(normalized)) {
             return "income";
         }
         throw new BadRequestException("type deve ser income ou expense.");
@@ -227,10 +230,14 @@ public class FinancialController {
 
     private String normalizeStatus(String value) {
         String normalized = normalizeNullableText(value);
-        if ("paid".equalsIgnoreCase(normalized)) {
+        if (
+                "paid".equalsIgnoreCase(normalized) ||
+                        "pago".equalsIgnoreCase(normalized) ||
+                        "recebido".equalsIgnoreCase(normalized)
+        ) {
             return "paid";
         }
-        if ("canceled".equalsIgnoreCase(normalized)) {
+        if ("canceled".equalsIgnoreCase(normalized) || "cancelado".equalsIgnoreCase(normalized)) {
             return "canceled";
         }
         return "pending";
