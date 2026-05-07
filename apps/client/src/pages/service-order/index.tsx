@@ -1784,7 +1784,7 @@ export const ServiceOrderPage: React.FC = () => {
             variant="outlined"
             onClick={() => navigate("/ordem-servico/historico")}
           >
-            Histórico IA
+            Encerramento de OS
           </Button>
           <Button
             size="small"
