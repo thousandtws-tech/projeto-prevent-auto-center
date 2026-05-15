@@ -63,9 +63,8 @@ type HistoryRow = ServiceOrderRecord & {
 
 type HistoryStatusFilter =
   | "all"
-  | "open"
-  | "finished"
-  | ServiceOrderRecordStatus;
+  | "registered"
+  | "sent_for_signature";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", {
@@ -221,16 +220,12 @@ const getSearchableText = (row: HistoryRow) =>
   );
 
 const matchesHistoryStatus = (row: HistoryRow, filter: HistoryStatusFilter) => {
+  if (isClosedStatus(row.status)) {
+    return false;
+  }
+
   if (filter === "all") {
     return true;
-  }
-
-  if (filter === "open") {
-    return !isClosedStatus(row.status);
-  }
-
-  if (filter === "finished") {
-    return isClosedStatus(row.status);
   }
 
   return row.status === filter;
@@ -452,6 +447,7 @@ export const ServiceOrderHistoryPage: React.FC = () => {
       Array.from(
         new Set(
           rows
+            .filter((row) => !isClosedStatus(row.status))
             .map((row) => row.orderInfo.mechanicResponsible.trim())
             .filter(Boolean),
         ),
@@ -1199,13 +1195,9 @@ export const ServiceOrderHistoryPage: React.FC = () => {
               }
               sx={{ minWidth: 210 }}
             >
-              <MenuItem value="all">Todos</MenuItem>
-              <MenuItem value="open">Abertas</MenuItem>
-              <MenuItem value="finished">Fechadas</MenuItem>
+              <MenuItem value="all">Todas em aberto</MenuItem>
               <MenuItem value="registered">Cadastrada</MenuItem>
               <MenuItem value="sent_for_signature">Aguardando assinatura</MenuItem>
-              <MenuItem value="closed">Encerradas</MenuItem>
-              <MenuItem value="signed">Assinadas</MenuItem>
             </TextField>
             <TextField
               size="small"
