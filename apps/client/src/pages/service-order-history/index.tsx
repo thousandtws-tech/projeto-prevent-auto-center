@@ -28,6 +28,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
+import PreviewOutlinedIcon from "@mui/icons-material/PreviewOutlined";
 import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
@@ -243,7 +244,12 @@ const escapeHtml = (value: string | number | null | undefined) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-const openPrintWindow = (title: string, body: string) => {
+const openPrintWindow = (
+  title: string,
+  body: string,
+  options: { autoPrint?: boolean } = {},
+) => {
+  const autoPrint = options.autoPrint ?? true;
   const printWindow = window.open("", "_blank", "noopener,noreferrer");
   if (!printWindow) {
     return false;
@@ -260,6 +266,9 @@ const openPrintWindow = (title: string, body: string) => {
           body { font-family: Arial, sans-serif; margin: 32px; color: #111827; }
           h1, h2, h3 { margin: 0 0 12px; }
           p { margin: 4px 0; }
+          .preview-toolbar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 24px; }
+          .preview-toolbar button { border: 1px solid #9ca3af; border-radius: 6px; background: #fff; color: #111827; cursor: pointer; font-size: 14px; padding: 8px 12px; }
+          .preview-toolbar button.primary { background: #111827; border-color: #111827; color: #fff; }
           .muted { color: #4b5563; }
           .section { margin-top: 20px; }
           .grid { display: grid; gap: 8px 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -268,15 +277,27 @@ const openPrintWindow = (title: string, body: string) => {
           th { background: #f3f4f6; }
           td.number, th.number { text-align: right; }
           .totals { margin-top: 16px; display: grid; gap: 8px; justify-content: end; }
-          @media print { body { margin: 18px; } }
+          @media print { body { margin: 18px; } .preview-toolbar { display: none; } }
         </style>
       </head>
-      <body>${body}</body>
+      <body>
+        ${
+          autoPrint
+            ? ""
+            : `<div class="preview-toolbar">
+                <button type="button" onclick="window.close()">Fechar</button>
+                <button type="button" class="primary" onclick="window.print()">Imprimir</button>
+              </div>`
+        }
+        ${body}
+      </body>
     </html>
   `);
   printWindow.document.close();
   printWindow.focus();
-  printWindow.print();
+  if (autoPrint) {
+    printWindow.print();
+  }
   return true;
 };
 
@@ -596,9 +617,9 @@ export const ServiceOrderHistoryPage: React.FC = () => {
     }
   };
 
-  const handlePrintServiceOrder = (row: HistoryRow) => {
+  const buildServiceOrderPrintBody = (row: HistoryRow) => {
     const breakdown = getHistoryRowFinancialBreakdown(row);
-    const body = `
+    return `
       <h1>Ordem de Serviço #${escapeHtml(row.orderInfo.orderNumber || "-")}</h1>
       <div class="section grid">
         <p><strong>Cliente:</strong> ${escapeHtml(row.orderInfo.customerName || "-")}</p>
@@ -622,6 +643,25 @@ export const ServiceOrderHistoryPage: React.FC = () => {
         <p>${escapeHtml(row.orderInfo.notes || "-")}</p>
       </div>
     `;
+  };
+
+  const handlePreviewPrintServiceOrder = (row: HistoryRow) => {
+    const body = buildServiceOrderPrintBody(row);
+
+    if (
+      !openPrintWindow(`Prévia da OS ${row.orderInfo.orderNumber || row.id}`, body, {
+        autoPrint: false,
+      })
+    ) {
+      open?.({
+        type: "error",
+        message: "O navegador bloqueou a janela de prévia",
+      });
+    }
+  };
+
+  const handlePrintServiceOrder = (row: HistoryRow) => {
+    const body = buildServiceOrderPrintBody(row);
 
     if (!openPrintWindow(`OS ${row.orderInfo.orderNumber || row.id}`, body)) {
       open?.({
@@ -1322,6 +1362,21 @@ export const ServiceOrderHistoryPage: React.FC = () => {
                               size="small"
                               variant="text"
                               color="primary"
+                              onClick={() => handlePreviewPrintServiceOrder(row)}
+                              startIcon={<PreviewOutlinedIcon fontSize="small" />}
+                              sx={{
+                                textTransform: "none",
+                                whiteSpace: "nowrap",
+                                minHeight: 32,
+                                alignItems: "center",
+                              }}
+                            >
+                              Prévia
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="text"
+                              color="primary"
                               onClick={() => handlePrintServiceOrder(row)}
                               startIcon={<PrintOutlinedIcon fontSize="small" />}
                               sx={{
@@ -1594,6 +1649,14 @@ export const ServiceOrderHistoryPage: React.FC = () => {
           ) : null}
       </DialogContent>
       <DialogActions>
+        {selectedRow ? (
+          <Button
+            startIcon={<PreviewOutlinedIcon fontSize="small" />}
+            onClick={() => handlePreviewPrintServiceOrder(selectedRow)}
+          >
+            Prévia impressão
+          </Button>
+        ) : null}
         {selectedRow ? (
           <Button
             startIcon={<PrintOutlinedIcon fontSize="small" />}
