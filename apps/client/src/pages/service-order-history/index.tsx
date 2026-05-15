@@ -245,11 +245,12 @@ const openPrintWindow = (
   options: { autoPrint?: boolean } = {},
 ) => {
   const autoPrint = options.autoPrint ?? true;
-  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  const printWindow = window.open("", "_blank");
   if (!printWindow) {
     return false;
   }
 
+  printWindow.opener = null;
   printWindow.document.write(`
     <!doctype html>
     <html lang="pt-BR">
