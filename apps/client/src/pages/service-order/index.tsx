@@ -77,6 +77,8 @@ import {
   createServiceOrderApi,
   getServiceOrderApi,
   isServiceOrdersBackendEnabled,
+  listServiceOrdersApi,
+  readServiceOrders,
   shareServiceOrderApi,
   updateServiceOrderApi,
   type CreateServiceOrderPayload,
@@ -230,14 +232,47 @@ const formatDateInputFromIso = (value: string) => {
 
 const getTodayDateInput = () => formatDateInputFromIso(new Date().toISOString());
 
-const generateServiceOrderNumber = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hour = String(now.getHours()).padStart(2, "0");
-  const minute = String(now.getMinutes()).padStart(2, "0");
-  return `OS-${year}${month}${day}-${hour}${minute}`;
+const getSequenceYear = (date: string) => {
+  const parsed = date ? new Date(`${date}T00:00:00`) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date().getFullYear() : parsed.getFullYear();
+};
+
+const getOrderSequenceNumber = (orderNumber: string, year: number) => {
+  const normalized = orderNumber.trim().toUpperCase();
+  const yearMatch = normalized.match(new RegExp(`^OS-${year}-(\\d{1,6})$`));
+  if (yearMatch) {
+    return Number(yearMatch[1]);
+  }
+
+  const compactMatch = normalized.match(new RegExp(`^OS${year}(\\d{1,6})$`));
+  if (compactMatch) {
+    return Number(compactMatch[1]);
+  }
+
+  return 0;
+};
+
+const isTimestampServiceOrderNumber = (orderNumber: string) =>
+  /^OS-\d{8}-\d{4}$/i.test(orderNumber.trim());
+
+const shouldAutoGenerateServiceOrderNumber = (orderNumber: string) => {
+  const normalized = orderNumber.trim();
+  return !normalized || isTimestampServiceOrderNumber(normalized);
+};
+
+const generateServiceOrderNumber = (
+  orders: Pick<ServiceOrderRecord, "orderInfo">[],
+  date: string,
+) => {
+  const year = getSequenceYear(date);
+  const nextSequence =
+    orders.reduce(
+      (max, order) =>
+        Math.max(max, getOrderSequenceNumber(order.orderInfo.orderNumber, year)),
+      0,
+    ) + 1;
+
+  return `OS-${year}-${String(nextSequence).padStart(3, "0")}`;
 };
 
 const formatChecklistLabel = (key: string) =>
@@ -510,14 +545,47 @@ export const ServiceOrderPage: React.FC = () => {
   const [registeredMechanics, setRegisteredMechanics] = useState<Mechanic[]>([]);
 
   useEffect(() => {
-    setOrderInfo((previous) => ({
-      ...previous,
-      orderNumber: previous.orderNumber.trim()
-        ? previous.orderNumber
-        : generateServiceOrderNumber(),
-      date: previous.date.trim() ? previous.date : getTodayDateInput(),
-    }));
-  }, []);
+    if (isEditingServiceOrder) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const hydrateOrderNumber = async () => {
+      let serviceOrders = readServiceOrders();
+
+      try {
+        serviceOrders = await listServiceOrdersApi();
+      } catch {
+        serviceOrders = readServiceOrders();
+      }
+
+      if (isCancelled) {
+        return;
+      }
+
+      setOrderInfo((previous) => {
+        const date = previous.date.trim() ? previous.date : getTodayDateInput();
+        const orderNumber = shouldAutoGenerateServiceOrderNumber(
+          previous.orderNumber,
+        )
+          ? generateServiceOrderNumber(serviceOrders, date)
+          : previous.orderNumber;
+
+        return {
+          ...previous,
+          orderNumber,
+          date,
+        };
+      });
+    };
+
+    void hydrateOrderNumber();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isEditingServiceOrder]);
 
   useEffect(() => {
     if (isEditingServiceOrder) {
