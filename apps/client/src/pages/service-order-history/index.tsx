@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useNotification, useTranslate } from "@refinedev/core";
+import type { Worksheet } from "exceljs";
 import Grid from "@mui/material/Grid2";
+import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -10,6 +12,8 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Table from "@mui/material/Table";
@@ -17,20 +21,31 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
+import TablePagination from "@mui/material/TablePagination";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import AutorenewOutlinedIcon from "@mui/icons-material/AutorenewOutlined";
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
 import PreviewOutlinedIcon from "@mui/icons-material/PreviewOutlined";
+import RestartAltOutlinedIcon from "@mui/icons-material/RestartAltOutlined";
 import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
+import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import dayjs, { type Dayjs } from "dayjs";
+import "dayjs/locale/pt-br";
 import {
   removeSharedServiceOrderByToken,
   SERVICE_ORDER_SIGNATURES_UPDATED_EVENT,
@@ -175,6 +190,23 @@ const getHistoryRowFinancialBreakdown = (
   };
 };
 
+type SpreadsheetExportRow = {
+  OS: string;
+  Data: string;
+  Cliente: string;
+  Telefone: string;
+  Veiculo: string;
+  Placa: string;
+  Mecanico: string;
+  Status: string;
+  Pecas: number;
+  MaoDeObra: number;
+  Terceiros: number;
+  Desconto: number;
+  Recusado: number;
+  TotalOS: number;
+};
+
 const formatOrderDate = (value: string) => {
   if (!value) {
     return "-";
@@ -186,6 +218,83 @@ const formatOrderDate = (value: string) => {
   }
 
   return parsed.toLocaleDateString("pt-BR");
+};
+
+const buildSpreadsheetExportRows = (rows: HistoryRow[]): SpreadsheetExportRow[] =>
+  rows.map((row) => {
+    const breakdown = getHistoryRowFinancialBreakdown(row);
+
+    return {
+      OS: row.orderInfo.orderNumber || "-",
+      Data: formatOrderDate(row.orderInfo.date),
+      Cliente: row.orderInfo.customerName || "-",
+      Telefone: row.orderInfo.phone || "-",
+      Veiculo: row.orderInfo.vehicle || "-",
+      Placa: row.orderInfo.plate || "-",
+      Mecanico: row.orderInfo.mechanicResponsible || "-",
+      Status: STATUS_META[row.status].label,
+      Pecas: breakdown.partsApprovedValue,
+      MaoDeObra: breakdown.laborApprovedValue,
+      Terceiros: breakdown.thirdPartyApprovedValue,
+      Desconto: row.discount,
+      Recusado: breakdown.declinedValue,
+      TotalOS: row.totals.grandTotal,
+    };
+  });
+
+const EXCEL_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const EXCEL_CURRENCY_FORMAT = '"R$" #,##0.00;[Red]-"R$" #,##0.00';
+
+const historyActionButtonSx = {
+  width: 34,
+  height: 34,
+  border: "1px solid",
+  borderColor: "divider",
+  backgroundColor: "background.paper",
+  "&:hover": {
+    backgroundColor: "action.hover",
+  },
+};
+
+const getDatePickerValue = (value: string): Dayjs | null => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = dayjs(`${value}T00:00:00`);
+  return parsed.isValid() ? parsed : null;
+};
+
+const getDatePickerIsoValue = (value: Dayjs | null) =>
+  value?.isValid() ? value.format("YYYY-MM-DD") : "";
+
+const applyExcelHeaderStyle = (worksheet: Worksheet) => {
+  const header = worksheet.getRow(1);
+  header.height = 24;
+  header.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FF1F2937" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFEAF2FF" },
+    };
+    cell.alignment = { vertical: "middle" };
+    cell.border = {
+      bottom: { style: "thin", color: { argb: "FFD8DEE9" } },
+    };
+  });
+};
+
+const applyExcelCurrencyFormat = (
+  worksheet: Worksheet,
+  columns: Array<string | number>,
+) => {
+  columns.forEach((columnKey) => {
+    const column = worksheet.getColumn(columnKey);
+    column.numFmt = EXCEL_CURRENCY_FORMAT;
+    column.alignment = { horizontal: "right" };
+  });
 };
 
 const normalizeSearchText = (value: string) =>
@@ -319,8 +428,9 @@ export const ServiceOrderHistoryPage: React.FC = () => {
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [reopeningOrderId, setReopeningOrderId] = useState<string | null>(null);
   const [closingOrderId, setClosingOrderId] = useState<string | null>(null);
-
-  const geminiConfigured = isServiceOrderGeminiConfigured();
+  const [isExportingSpreadsheet, setIsExportingSpreadsheet] = useState(false);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyRowsPerPage, setHistoryRowsPerPage] = useState(10);
 
   const loadRecords = async (showError = false) => {
     try {
@@ -490,6 +600,36 @@ export const ServiceOrderHistoryPage: React.FC = () => {
     });
   }, [mechanicFilter, periodEnd, periodStart, rows, searchValue, statusFilter]);
 
+  useEffect(() => {
+    setHistoryPage(0);
+  }, [mechanicFilter, periodEnd, periodStart, searchValue, statusFilter]);
+
+  const visibleHistoryRows = useMemo(
+    () =>
+      filteredRows.slice(
+        historyPage * historyRowsPerPage,
+        historyPage * historyRowsPerPage + historyRowsPerPage,
+      ),
+    [filteredRows, historyPage, historyRowsPerPage],
+  );
+
+  useEffect(() => {
+    const maxPage = Math.max(
+      0,
+      Math.ceil(filteredRows.length / historyRowsPerPage) - 1,
+    );
+    if (historyPage > maxPage) {
+      setHistoryPage(maxPage);
+    }
+  }, [filteredRows.length, historyPage, historyRowsPerPage]);
+
+  const hasActiveHistoryFilters =
+    Boolean(searchValue.trim()) ||
+    statusFilter !== "all" ||
+    mechanicFilter !== "all" ||
+    Boolean(periodStart) ||
+    Boolean(periodEnd);
+
   const summary = useMemo(() => {
     return rows.reduce(
       (acc, row) => {
@@ -550,6 +690,127 @@ export const ServiceOrderHistoryPage: React.FC = () => {
       partsRevenue: totals.partsApprovedValue,
     };
   }, [filteredRows]);
+
+  const handleExportSpreadsheet = async () => {
+    if (!filteredRows.length) {
+      open?.({
+        type: "error",
+        message: "Não há ordens no filtro para exportar",
+      });
+      return;
+    }
+
+    try {
+      setIsExportingSpreadsheet(true);
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const exportRows = buildSpreadsheetExportRows(filteredRows);
+
+      workbook.creator = "Prevent AutoCenter";
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      const summaryWorksheet = workbook.addWorksheet("Resumo", {
+        views: [{ showGridLines: false }],
+      });
+      summaryWorksheet.columns = [
+        { header: "Indicador", key: "indicator", width: 30 },
+        { header: "Valor", key: "value", width: 20 },
+      ];
+      summaryWorksheet.addRows([
+        { indicator: "OS no filtro", value: spreadsheetSummary.totalOrders },
+        {
+          indicator: "Ticket médio mão de obra",
+          value: spreadsheetSummary.averageTicket,
+        },
+        { indicator: "Receita peças", value: spreadsheetSummary.partsRevenue },
+        {
+          indicator: "Receita mão de obra",
+          value: spreadsheetSummary.servicesRevenue,
+        },
+        { indicator: "Valor recusado", value: spreadsheetSummary.declinedValue },
+        { indicator: "Descontos", value: spreadsheetSummary.discountValue },
+        { indicator: "Total aprovado", value: spreadsheetSummary.grandTotal },
+      ]);
+      applyExcelHeaderStyle(summaryWorksheet);
+      ["B3", "B4", "B5", "B6", "B7", "B8"].forEach((cellAddress) => {
+        summaryWorksheet.getCell(cellAddress).numFmt = EXCEL_CURRENCY_FORMAT;
+        summaryWorksheet.getCell(cellAddress).alignment = { horizontal: "right" };
+      });
+
+      const ordersWorksheet = workbook.addWorksheet("Ordens", {
+        views: [{ state: "frozen", ySplit: 1 }],
+      });
+      ordersWorksheet.columns = [
+        { header: "OS", key: "OS", width: 16 },
+        { header: "Data", key: "Data", width: 12 },
+        { header: "Cliente", key: "Cliente", width: 30 },
+        { header: "Telefone", key: "Telefone", width: 16 },
+        { header: "Veículo", key: "Veiculo", width: 24 },
+        { header: "Placa", key: "Placa", width: 12 },
+        { header: "Mecânico", key: "Mecanico", width: 24 },
+        { header: "Status", key: "Status", width: 22 },
+        { header: "Peças", key: "Pecas", width: 14 },
+        { header: "Mão de obra", key: "MaoDeObra", width: 14 },
+        { header: "Terceiros", key: "Terceiros", width: 14 },
+        { header: "Desconto", key: "Desconto", width: 14 },
+        { header: "Recusado", key: "Recusado", width: 14 },
+        { header: "Total OS", key: "TotalOS", width: 14 },
+      ];
+      ordersWorksheet.addRows(exportRows);
+      ordersWorksheet.autoFilter = {
+        from: "A1",
+        to: "N1",
+      };
+      applyExcelHeaderStyle(ordersWorksheet);
+      applyExcelCurrencyFormat(ordersWorksheet, [
+        "Pecas",
+        "MaoDeObra",
+        "Terceiros",
+        "Desconto",
+        "Recusado",
+        "TotalOS",
+      ]);
+      ordersWorksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+          return;
+        }
+
+        row.height = 22;
+        row.eachCell((cell) => {
+          cell.alignment = {
+            ...cell.alignment,
+            vertical: "middle",
+          };
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: EXCEL_MIME_TYPE });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `analise-os-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      open?.({
+        type: "success",
+        message: "Planilha Excel exportada",
+        description: `${exportRows.length} OS incluída(s) no arquivo.`,
+      });
+    } catch (error) {
+      open?.({
+        type: "error",
+        message: "Falha ao exportar planilha Excel",
+        description: getErrorMessage(error),
+      });
+    } finally {
+      setIsExportingSpreadsheet(false);
+    }
+  };
 
   const handlePrintReport = () => {
     if (!filteredRows.length) {
@@ -666,6 +927,33 @@ export const ServiceOrderHistoryPage: React.FC = () => {
         message: "O navegador bloqueou a janela de impressão",
       });
     }
+  };
+
+  const handlePeriodStartChange = (value: Dayjs | null) => {
+    const nextStart = getDatePickerIsoValue(value);
+    setPeriodStart(nextStart);
+    if (nextStart && periodEnd && periodEnd < nextStart) {
+      setPeriodEnd(nextStart);
+    }
+  };
+
+  const handlePeriodEndChange = (value: Dayjs | null) => {
+    setPeriodEnd(getDatePickerIsoValue(value));
+  };
+
+  const handleHistoryRowsPerPageChange = (
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    setHistoryRowsPerPage(Number.parseInt(event.target.value, 10));
+    setHistoryPage(0);
+  };
+
+  const handleClearHistoryFilters = () => {
+    setSearchValue("");
+    setStatusFilter("all");
+    setMechanicFilter("all");
+    setPeriodStart("");
+    setPeriodEnd("");
   };
 
   const handleGenerateInsight = async () => {
@@ -888,6 +1176,141 @@ export const ServiceOrderHistoryPage: React.FC = () => {
     }
   };
 
+  const renderHistoryActions = (
+    row: HistoryRow,
+    options?: {
+      justifyContent?: "flex-start" | "flex-end" | "center";
+    },
+  ) => (
+    <Stack
+      direction="row"
+      spacing={0.75}
+      alignItems="center"
+      justifyContent={options?.justifyContent ?? "flex-end"}
+      flexWrap="wrap"
+      useFlexGap
+    >
+      <Tooltip title="Editar OS">
+        <span>
+          <IconButton
+            size="small"
+            color="primary"
+            disabled={isClosedStatus(row.status)}
+            onClick={() =>
+              navigate(
+                `/ordem-servico?serviceOrderId=${encodeURIComponent(row.id)}`,
+              )
+            }
+            sx={historyActionButtonSx}
+          >
+            <EditOutlinedIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Tooltip title="Visualizar OS">
+        <span>
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={() => setSelectedRow(row)}
+            sx={historyActionButtonSx}
+          >
+            <VisibilityOutlinedIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Tooltip title="Prévia da impressão">
+        <span>
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={() => handlePreviewPrintServiceOrder(row)}
+            sx={historyActionButtonSx}
+          >
+            <PreviewOutlinedIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Tooltip title="Imprimir OS">
+        <span>
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={() => handlePrintServiceOrder(row)}
+            sx={historyActionButtonSx}
+          >
+            <PrintOutlinedIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+      {!isClosedStatus(row.status) ? (
+        <Tooltip
+          title={closingOrderId === row.id ? "Encerrando OS" : "Encerrar OS"}
+        >
+          <span>
+            <IconButton
+              size="small"
+              color="success"
+              disabled={closingOrderId === row.id}
+              onClick={() => {
+                void handleCloseRecord(row);
+              }}
+              sx={historyActionButtonSx}
+            >
+              {closingOrderId === row.id ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <CheckCircleOutlineOutlinedIcon fontSize="small" />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
+      ) : null}
+      {isClosedStatus(row.status) ? (
+        <Tooltip
+          title={reopeningOrderId === row.id ? "Reabrindo OS" : "Reabrir OS"}
+        >
+          <span>
+            <IconButton
+              size="small"
+              color="warning"
+              disabled={reopeningOrderId === row.id}
+              onClick={() => {
+                void handleReopenRecord(row);
+              }}
+              sx={historyActionButtonSx}
+            >
+              {reopeningOrderId === row.id ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <AutorenewOutlinedIcon fontSize="small" />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
+      ) : null}
+      <Tooltip title={deletingOrderId === row.id ? "Excluindo OS" : "Excluir OS"}>
+        <span>
+          <IconButton
+            size="small"
+            color="error"
+            disabled={isClosedStatus(row.status) || deletingOrderId === row.id}
+            onClick={() => {
+              void handleDeleteRecord(row);
+            }}
+            sx={historyActionButtonSx}
+          >
+            {deletingOrderId === row.id ? (
+              <CircularProgress size={16} color="inherit" />
+            ) : (
+              <DeleteOutlineOutlinedIcon fontSize="small" />
+            )}
+          </IconButton>
+        </span>
+      </Tooltip>
+    </Stack>
+  );
+
   return (
     <RefineListView
       canCreate={false}
@@ -929,11 +1352,11 @@ export const ServiceOrderHistoryPage: React.FC = () => {
           icon={<AutoAwesomeOutlinedIcon />}
           cardContentProps={{ sx: { p: 3 } }}
         >
-          <Stack spacing={1.5}>
+          <Stack spacing={1.5} padding={3}>
             <TextField
               fullWidth
               size="small"
-              label="Pergunta para a IA (opcional)"
+              label="Pergunta para a IA"
               value={insightQuestion}
               onChange={(event) => setInsightQuestion(event.target.value)}
               placeholder="Ex: Quais itens da planilha têm maior recusa e como reduzir?"
@@ -968,7 +1391,7 @@ export const ServiceOrderHistoryPage: React.FC = () => {
           </Stack>
         </Card>
 
-        <Grid container columns={24} spacing={2}>
+        <Grid container columns={24} spacing={2} padding={1}>
           <Grid size={{ xs: 24, md: 8 }}>
             <Card
               title="Ordens"
@@ -1014,22 +1437,59 @@ export const ServiceOrderHistoryPage: React.FC = () => {
         </Grid>
 
         <Card
-          title="Análise da Planilha de OS"
+          title="Planilha gerencial de OS"
           icon={<HistoryOutlinedIcon />}
+          cardHeaderProps={{
+            action: (
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={
+                  isExportingSpreadsheet ? (
+                    <CircularProgress size={14} color="inherit" />
+                  ) : (
+                    <FileDownloadOutlinedIcon fontSize="small" />
+                  )
+                }
+                onClick={() => {
+                  void handleExportSpreadsheet();
+                }}
+                disabled={!filteredRows.length || isExportingSpreadsheet}
+              >
+                {isExportingSpreadsheet ? "Exportando..." : "Exportar Excel"}
+              </Button>
+            ),
+          }}
           cardContentProps={{ sx: { p: 0 } }}
         >
           <Stack spacing={1.5} sx={{ p: 2 }}>
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1}
+              alignItems={{ xs: "stretch", md: "center" }}
+              justifyContent="space-between"
+            >
+              <Typography variant="body2" color="text.secondary">
+                Recorte financeiro das OS em aberto conforme os filtros aplicados.
+              </Typography>
+              <Chip
+                size="small"
+                color="default"
+                variant="outlined"
+                label="Arquivo .xlsx com resumo e ordens"
+              />
+            </Stack>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
               <Chip
                 size="small"
                 color="primary"
-                variant="outlined"
+                variant="filled"
                 label={`${spreadsheetSummary.totalOrders} OS no filtro`}
               />
               <Chip
                 size="small"
                 variant="outlined"
-                label={`Ticket médio mão de obra: ${formatCurrency(spreadsheetSummary.averageTicket)}`}
+                label={`Ticket médio: ${formatCurrency(spreadsheetSummary.averageTicket)}`}
               />
               <Chip
                 size="small"
@@ -1051,10 +1511,38 @@ export const ServiceOrderHistoryPage: React.FC = () => {
             </Stack>
           </Stack>
           <Divider />
-          <TableContainer sx={{ maxHeight: 420 }}>
+          <TableContainer
+            sx={{
+              maxHeight: 420,
+              scrollbarWidth: "thin",
+              scrollbarColor: (theme) =>
+                `${alpha(theme.palette.text.primary, 0.28)} transparent`,
+              "&::-webkit-scrollbar": {
+                width: 6,
+                height: 6,
+              },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: (theme) => alpha(theme.palette.text.primary, 0.24),
+                borderRadius: 999,
+              },
+              "&::-webkit-scrollbar-thumb:hover": {
+                backgroundColor: (theme) => alpha(theme.palette.text.primary, 0.38),
+              },
+              "&::-webkit-scrollbar-track": {
+                backgroundColor: "transparent",
+              },
+            }}
+          >
             <Table size="small" stickyHeader>
               <TableHead>
-                <TableRow>
+                <TableRow
+                  sx={{
+                    "& th": {
+                      backgroundColor: "background.paper",
+                      fontWeight: 700,
+                    },
+                  }}
+                >
                   <TableCell>OS</TableCell>
                   <TableCell>Data</TableCell>
                   <TableCell>Cliente</TableCell>
@@ -1122,6 +1610,10 @@ export const ServiceOrderHistoryPage: React.FC = () => {
                   <TableRow
                     sx={{
                       backgroundColor: (theme) => theme.palette.action.hover,
+                      "& .MuiTableCell-root": {
+                        borderTop: "1px solid",
+                        borderColor: "divider",
+                      },
                     }}
                   >
                     <TableCell colSpan={4}>
@@ -1170,120 +1662,455 @@ export const ServiceOrderHistoryPage: React.FC = () => {
           title="Tabela de Histórico"
           icon={<HistoryOutlinedIcon />}
           cardContentProps={{ sx: { p: 0 } }}
+          
         >
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={1.2}
-            sx={{ p: 2 }}
-            flexWrap="wrap"
-            useFlexGap
+          <Box
+            sx={{
+              px: 0,
+              py: 1.25,
+              backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.025),
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
           >
-            <TextField
-              size="small"
-              label="Buscar"
-              value={searchValue}
-              onChange={(event) => setSearchValue(event.target.value)}
-              placeholder="OS, cliente, telefone, carro, placa, mecânico, status"
-              fullWidth
-            />
-            <TextField
-              size="small"
-              select
-              label="Status"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as HistoryStatusFilter)
-              }
-              sx={{ minWidth: 210 }}
+            <LocalizationProvider
+              dateAdapter={AdapterDayjs}
+              adapterLocale="pt-br"
             >
-              <MenuItem value="all">Todas em aberto</MenuItem>
-              <MenuItem value="registered">Cadastrada</MenuItem>
-              <MenuItem value="sent_for_signature">Aguardando assinatura</MenuItem>
-            </TextField>
-            <TextField
-              size="small"
-              select
-              label="Mecânico"
-              value={mechanicFilter}
-              onChange={(event) => setMechanicFilter(event.target.value)}
-              sx={{ minWidth: 220 }}
+              <Grid container columns={24} spacing={1.25} alignItems="center">
+                <Grid size={{ xs: 24, lg: 7 }}>
+                  <TextField
+                    size="small"
+                    label="Buscar"
+                    value={searchValue}
+                    onChange={(event) => setSearchValue(event.target.value)}
+                    placeholder="OS, cliente, telefone, carro, placa ou mecânico"
+                    fullWidth
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchOutlinedIcon fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 24, sm: 12, lg: 4 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    select
+                    label="Status"
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.target.value as HistoryStatusFilter)
+                    }
+                  >
+                    <MenuItem value="all">Todas em aberto</MenuItem>
+                    <MenuItem value="registered">Cadastrada</MenuItem>
+                    <MenuItem value="sent_for_signature">
+                      Aguardando assinatura
+                    </MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 24, sm: 12, lg: 4 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    select
+                    label="Mecânico"
+                    value={mechanicFilter}
+                    onChange={(event) => setMechanicFilter(event.target.value)}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    {mechanicOptions.map((mechanic) => (
+                      <MenuItem key={mechanic} value={mechanic}>
+                        {mechanic}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 24, sm: 12, lg: 3 }}>
+                  <DatePicker
+                    label="Período inicial"
+                    format="DD/MM/YYYY"
+                    value={getDatePickerValue(periodStart)}
+                    onChange={handlePeriodStartChange}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                      },
+                    }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 24, sm: 12, lg: 3 }}>
+                  <DatePicker
+                    label="Período final"
+                    format="DD/MM/YYYY"
+                    value={getDatePickerValue(periodEnd)}
+                    onChange={handlePeriodEndChange}
+                    minDate={getDatePickerValue(periodStart) ?? undefined}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                      },
+                    }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 24, lg: 3 }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<RestartAltOutlinedIcon fontSize="small" />}
+                    onClick={handleClearHistoryFilters}
+                    disabled={!hasActiveHistoryFilters}
+                    sx={{
+                      minHeight: 40,
+                      textTransform: "none",
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
+                </Grid>
+              </Grid>
+            </LocalizationProvider>
+
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ mt: 1 }}
             >
-              <MenuItem value="all">Todos</MenuItem>
-              {mechanicOptions.map((mechanic) => (
-                <MenuItem key={mechanic} value={mechanic}>
-                  {mechanic}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              size="small"
-              type="date"
-              label="Período inicial"
-              value={periodStart}
-              onChange={(event) => setPeriodStart(event.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 180 }}
-            />
-            <TextField
-              size="small"
-              type="date"
-              label="Período final"
-              value={periodEnd}
-              onChange={(event) => setPeriodEnd(event.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 180 }}
-            />
+              <Chip
+                size="small"
+                color="primary"
+                label={`${filteredRows.length} OS em aberto`}
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`${mechanicOptions.length} mecânico(s) no filtro`}
+              />
+              {periodStart || periodEnd ? (
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`${periodStart ? formatOrderDate(periodStart) : "Início"} até ${
+                    periodEnd ? formatOrderDate(periodEnd) : "Fim"
+                  }`}
+                />
+              ) : null}
+            </Stack>
+          </Box>
+          <Stack
+            spacing={1}
+            sx={{
+              display: { xs: "flex", md: "none" },
+              p: 1,
+              backgroundColor: "background.default",
+            }}
+          >
+            {visibleHistoryRows.length ? (
+              visibleHistoryRows.map((row) => {
+                const statusMeta = STATUS_META[row.status];
+                const declinedItems = getDeclinedItemsCount(row);
+
+                return (
+                  <Paper
+                    key={`mobile-${row.id}`}
+                    variant="outlined"
+                    sx={{
+                      p: 1.25,
+                      borderRadius: 1,
+                      backgroundColor: "background.paper",
+                    }}
+                  >
+                    <Stack spacing={1}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="flex-start"
+                        justifyContent="space-between"
+                      >
+                        <Stack spacing={0.25} minWidth={0}>
+                          <Typography variant="subtitle2" fontWeight={800} noWrap>
+                            #{row.orderInfo.orderNumber || "-"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatOrderDate(row.orderInfo.date)}
+                          </Typography>
+                        </Stack>
+                        <Chip
+                          size="small"
+                          color={statusMeta.color}
+                          label={statusMeta.label}
+                          variant="outlined"
+                          sx={{
+                            maxWidth: 150,
+                            "& .MuiChip-label": {
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            },
+                          }}
+                        />
+                      </Stack>
+
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 0.75,
+                          gridTemplateColumns: "1fr",
+                        }}
+                      >
+                        <Box minWidth={0}>
+                          <Typography variant="caption" color="text.secondary">
+                            Cliente
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            fontWeight={700}
+                            noWrap
+                            title={row.orderInfo.customerName}
+                          >
+                            {row.orderInfo.customerName || "-"}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            noWrap
+                            title={row.orderInfo.phone}
+                            sx={{ display: "block" }}
+                          >
+                            {row.orderInfo.phone || "-"}
+                          </Typography>
+                        </Box>
+
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          justifyContent="space-between"
+                        >
+                          <Box minWidth={0}>
+                            <Typography variant="caption" color="text.secondary">
+                              Veículo
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              noWrap
+                              title={row.orderInfo.vehicle}
+                            >
+                              {row.orderInfo.vehicle || "-"}
+                            </Typography>
+                          </Box>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={row.orderInfo.plate || "Sem placa"}
+                            sx={{
+                              height: 22,
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                              flexShrink: 0,
+                            }}
+                          />
+                        </Stack>
+
+                        <Box minWidth={0}>
+                          <Typography variant="caption" color="text.secondary">
+                            Mecânico
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            noWrap
+                            title={row.orderInfo.mechanicResponsible}
+                          >
+                            {row.orderInfo.mechanicResponsible || "-"}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      <Divider />
+
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        justifyContent="space-between"
+                        flexWrap="wrap"
+                        useFlexGap
+                      >
+                        <Stack spacing={0.25}>
+                          <Typography variant="caption" color="text.secondary">
+                            Total OS
+                          </Typography>
+                          <Typography variant="subtitle2" fontWeight={800}>
+                            {formatCurrency(row.totals.grandTotal)}
+                          </Typography>
+                        </Stack>
+                        <Chip
+                          size="small"
+                          color={declinedItems ? "warning" : "default"}
+                          variant={declinedItems ? "filled" : "outlined"}
+                          label={declinedItems ? `${declinedItems} item(ns)` : "Sem recusa"}
+                        />
+                      </Stack>
+
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                        alignItems={{ xs: "stretch", sm: "center" }}
+                        justifyContent="space-between"
+                      >
+                        <Typography variant="caption" color="text.secondary">
+                          Atualizado em {formatDate(row.updatedAt)}
+                        </Typography>
+                        {renderHistoryActions(row, { justifyContent: "flex-start" })}
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                );
+              })
+            ) : (
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 3,
+                  borderRadius: 1,
+                  textAlign: "center",
+                }}
+              >
+                <Stack spacing={1} alignItems="center">
+                  <HistoryOutlinedIcon
+                    sx={{ fontSize: 34, color: "text.disabled" }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    Nenhuma OS em aberto encontrada com os filtros atuais.
+                  </Typography>
+                </Stack>
+              </Paper>
+            )}
           </Stack>
-          <Divider />
           <TableContainer
             sx={{
-              maxHeight: 520,
-              overflowX: "hidden",
+              display: { xs: "none", md: "block" },
+              overflow: "visible",
+              "& .MuiTableCell-root": {
+                borderColor: "divider",
+              },
             }}
           >
             <Table
               size="small"
-              stickyHeader
               sx={{
                 width: "100%",
                 tableLayout: "fixed",
               }}
             >
               <TableHead>
-                <TableRow>
-                  <TableCell>OS</TableCell>
-                  <TableCell>Cliente</TableCell>
-                  <TableCell>Carro / Placa</TableCell>
-                  <TableCell>Mecânico</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Recusas</TableCell>
-                  <TableCell>Total</TableCell>
-                  <TableCell>Atualizado em</TableCell>
-                  <TableCell align="right">Ações</TableCell>
+                <TableRow
+                  sx={{
+                    "& th": {
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.primary.main, 0.08),
+                      color: "text.primary",
+                      fontWeight: 800,
+                      lineHeight: 1.2,
+                      whiteSpace: "normal",
+                    },
+                  }}
+                >
+                  <TableCell sx={{ width: "8%" }}>OS</TableCell>
+                  <TableCell sx={{ width: "16%" }}>Cliente</TableCell>
+                  <TableCell sx={{ width: "14%" }}>Veículo</TableCell>
+                  <TableCell sx={{ width: "11%" }}>Mecânico</TableCell>
+                  <TableCell sx={{ width: "10%" }}>Status</TableCell>
+                  <TableCell sx={{ width: "9%" }}>Recusas</TableCell>
+                  <TableCell align="right" sx={{ width: "10%" }}>
+                    Total
+                  </TableCell>
+                  <TableCell sx={{ width: "12%" }}>Atualizado em</TableCell>
+                  <TableCell align="right" sx={{ width: "10%" }}>
+                    Ações
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredRows.length ? (
-                  filteredRows.map((row) => {
+                {visibleHistoryRows.length ? (
+                  visibleHistoryRows.map((row) => {
                     const statusMeta = STATUS_META[row.status];
                     const declinedItems = getDeclinedItemsCount(row);
 
                     return (
-                      <TableRow key={row.id} hover>
-                        <TableCell>#{row.orderInfo.orderNumber || "-"}</TableCell>
+                      <TableRow
+                        key={row.id}
+                        hover
+                        sx={{
+                          "&:nth-of-type(even)": {
+                            backgroundColor: (theme) =>
+                              alpha(theme.palette.action.hover, 0.45),
+                          },
+                        }}
+                      >
                         <TableCell>
-                          <Typography variant="body2" noWrap title={row.orderInfo.customerName}>
-                            {row.orderInfo.customerName || "-"}
-                          </Typography>
+                          <Stack spacing={0.25}>
+                            <Typography variant="body2" fontWeight={800} noWrap>
+                              #{row.orderInfo.orderNumber || "-"}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              noWrap
+                            >
+                              {formatOrderDate(row.orderInfo.date)}
+                            </Typography>
+                          </Stack>
                         </TableCell>
                         <TableCell>
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            title={`${row.orderInfo.vehicle || "-"} / ${row.orderInfo.plate || "-"}`}
-                          >
-                            {row.orderInfo.vehicle || "-"} / {row.orderInfo.plate || "-"}
-                          </Typography>
+                          <Stack spacing={0.25}>
+                            <Typography
+                              variant="body2"
+                              fontWeight={600}
+                              noWrap
+                              title={row.orderInfo.customerName}
+                            >
+                              {row.orderInfo.customerName || "-"}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              noWrap
+                              title={row.orderInfo.phone}
+                            >
+                              {row.orderInfo.phone || "-"}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                        <TableCell>
+                          <Stack spacing={0.5} alignItems="flex-start">
+                            <Typography
+                              variant="body2"
+                              noWrap
+                              title={row.orderInfo.vehicle}
+                              sx={{ maxWidth: "100%" }}
+                            >
+                              {row.orderInfo.vehicle || "-"}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={row.orderInfo.plate || "Sem placa"}
+                              sx={{
+                                height: 22,
+                                fontSize: "0.72rem",
+                                fontWeight: 700,
+                              }}
+                            />
+                          </Stack>
                         </TableCell>
                         <TableCell>
                           <Typography
@@ -1300,166 +2127,46 @@ export const ServiceOrderHistoryPage: React.FC = () => {
                             color={statusMeta.color}
                             label={statusMeta.label}
                             variant="outlined"
+                            sx={{
+                              maxWidth: "100%",
+                              "& .MuiChip-label": {
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              },
+                            }}
                           />
                         </TableCell>
                         <TableCell>
-                          {declinedItems ? `${declinedItems} item(ns)` : "-"}
+                          <Chip
+                            size="small"
+                            color={declinedItems ? "warning" : "default"}
+                            variant={declinedItems ? "filled" : "outlined"}
+                            label={declinedItems ? `${declinedItems} item(ns)` : "Sem recusa"}
+                            sx={{
+                              maxWidth: "100%",
+                              "& .MuiChip-label": {
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              },
+                            }}
+                          />
                         </TableCell>
-                        <TableCell>{formatCurrency(row.totals.grandTotal)}</TableCell>
-                        <TableCell>{formatDate(row.updatedAt)}</TableCell>
                         <TableCell align="right">
-                          <Stack
-                            direction="row"
-                            spacing={0.75}
-                            alignItems="center"
-                            justifyContent="flex-end"
-                            flexWrap="wrap"
-                            useFlexGap
+                          <Typography variant="body2" fontWeight={800}>
+                            {formatCurrency(row.totals.grandTotal)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            noWrap
                           >
-                            <Button
-                              size="small"
-                              variant="text"
-                              color="primary"
-                              disabled={isClosedStatus(row.status)}
-                              onClick={() =>
-                                navigate(
-                                  `/ordem-servico?serviceOrderId=${encodeURIComponent(row.id)}`,
-                                )
-                              }
-                              startIcon={<EditOutlinedIcon fontSize="small" />}
-                              sx={{
-                                textTransform: "none",
-                                whiteSpace: "nowrap",
-                                minHeight: 32,
-                                alignItems: "center",
-                              }}
-                            >
-                              Editar
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="text"
-                              color="primary"
-                              onClick={() => setSelectedRow(row)}
-                              startIcon={<VisibilityOutlinedIcon fontSize="small" />}
-                              sx={{
-                                textTransform: "none",
-                                whiteSpace: "nowrap",
-                                minHeight: 32,
-                                alignItems: "center",
-                              }}
-                            >
-                              Visualizar
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="text"
-                              color="primary"
-                              onClick={() => handlePreviewPrintServiceOrder(row)}
-                              startIcon={<PreviewOutlinedIcon fontSize="small" />}
-                              sx={{
-                                textTransform: "none",
-                                whiteSpace: "nowrap",
-                                minHeight: 32,
-                                alignItems: "center",
-                              }}
-                            >
-                              Prévia
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="text"
-                              color="primary"
-                              onClick={() => handlePrintServiceOrder(row)}
-                              startIcon={<PrintOutlinedIcon fontSize="small" />}
-                              sx={{
-                                textTransform: "none",
-                                whiteSpace: "nowrap",
-                                minHeight: 32,
-                                alignItems: "center",
-                              }}
-                            >
-                              Imprimir
-                            </Button>
-                            {!isClosedStatus(row.status) ? (
-                              <Button
-                                size="small"
-                                variant="text"
-                                color="success"
-                                disabled={closingOrderId === row.id}
-                                onClick={() => {
-                                  void handleCloseRecord(row);
-                                }}
-                                startIcon={
-                                  closingOrderId === row.id ? (
-                                    <CircularProgress size={14} color="inherit" />
-                                  ) : (
-                                    <CheckCircleOutlineOutlinedIcon fontSize="small" />
-                                  )
-                                }
-                                sx={{
-                                  textTransform: "none",
-                                  whiteSpace: "nowrap",
-                                  minHeight: 32,
-                                  alignItems: "center",
-                                }}
-                              >
-                                {closingOrderId === row.id ? "Encerrando..." : "Encerrar"}
-                              </Button>
-                            ) : null}
-                            {isClosedStatus(row.status) ? (
-                              <Button
-                                size="small"
-                                variant="text"
-                                color="warning"
-                                disabled={reopeningOrderId === row.id}
-                                onClick={() => {
-                                  void handleReopenRecord(row);
-                                }}
-                                startIcon={
-                                  reopeningOrderId === row.id ? (
-                                    <CircularProgress size={14} color="inherit" />
-                                  ) : (
-                                    <AutorenewOutlinedIcon fontSize="small" />
-                                  )
-                                }
-                                sx={{
-                                  textTransform: "none",
-                                  whiteSpace: "nowrap",
-                                  minHeight: 32,
-                                  alignItems: "center",
-                                }}
-                              >
-                                {reopeningOrderId === row.id
-                                  ? "Reabrindo..."
-                                  : "Reabrir"}
-                              </Button>
-                            ) : null}
-                            <Button
-                              size="small"
-                              variant="text"
-                              color="error"
-                              disabled={isClosedStatus(row.status) || deletingOrderId === row.id}
-                              onClick={() => {
-                                void handleDeleteRecord(row);
-                              }}
-                              startIcon={
-                                deletingOrderId === row.id ? (
-                                  <CircularProgress size={14} color="inherit" />
-                                ) : (
-                                  <DeleteOutlineOutlinedIcon fontSize="small" />
-                                )
-                              }
-                              sx={{
-                                textTransform: "none",
-                                whiteSpace: "nowrap",
-                                minHeight: 32,
-                                alignItems: "center",
-                              }}
-                            >
-                              {deletingOrderId === row.id ? "Excluindo..." : "Excluir"}
-                            </Button>
-                          </Stack>
+                            {formatDate(row.updatedAt)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          {renderHistoryActions(row)}
                         </TableCell>
                       </TableRow>
                     );
@@ -1467,15 +2174,46 @@ export const ServiceOrderHistoryPage: React.FC = () => {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={9}>
-                      <Typography variant="body2" color="text.secondary">
-                        Nenhuma ordem encontrada com os filtros atuais.
-                      </Typography>
+                      <Stack
+                        spacing={1}
+                        alignItems="center"
+                        justifyContent="center"
+                        sx={{ py: 5 }}
+                      >
+                        <HistoryOutlinedIcon
+                          sx={{ fontSize: 34, color: "text.disabled" }}
+                        />
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          textAlign="center"
+                        >
+                          Nenhuma OS em aberto encontrada com os filtros atuais.
+                        </Typography>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={filteredRows.length}
+            page={historyPage}
+            onPageChange={(_, page) => setHistoryPage(page)}
+            rowsPerPage={historyRowsPerPage}
+            onRowsPerPageChange={handleHistoryRowsPerPageChange}
+            rowsPerPageOptions={[10, 25, 50]}
+            labelRowsPerPage="Linhas por página"
+            labelDisplayedRows={({ from, to, count }) =>
+              `${from}-${to} de ${count !== -1 ? count : `mais de ${to}`}`
+            }
+            sx={{
+              borderTop: "1px solid",
+              borderColor: "divider",
+            }}
+          />
         </Card>
       </Stack>
 

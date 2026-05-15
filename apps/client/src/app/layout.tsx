@@ -12,8 +12,8 @@ const CONTENT_SX = {
   maxWidth: "min(var(--app-shell-max-width), 100%)",
   marginLeft: "auto",
   marginRight: "auto",
-  paddingLeft: "max(var(--app-page-gutter), env(safe-area-inset-left))",
-  paddingRight: "max(var(--app-page-gutter), env(safe-area-inset-right))",
+  paddingLeft: 0,
+  paddingRight: 0,
   paddingTop: {
     xs: 1.5,
     sm: 2.5,
@@ -55,7 +55,8 @@ export const AppThemedLayout: React.FC<AppLayoutProps> = ({
       Sider={AppSider}
       childrenBoxProps={{
         sx: {
-          p: 1,
+          px: 0,
+          py: 1,
         },
       }}
     >

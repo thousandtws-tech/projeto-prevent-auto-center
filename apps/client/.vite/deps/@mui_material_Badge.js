@@ -2,9 +2,9 @@ import {
   Badge_default,
   badgeClasses_default,
   getBadgeUtilityClass
-} from "./chunk-OTSG22BD.js";
-import "./chunk-TAPUFPH2.js";
+} from "./chunk-ARIEMJWA.js";
 import "./chunk-Q27V2UR3.js";
+import "./chunk-TAPUFPH2.js";
 import "./chunk-N7IMXGIU.js";
 import "./chunk-EZYBKUPR.js";
 import "./chunk-2QRBAPXQ.js";

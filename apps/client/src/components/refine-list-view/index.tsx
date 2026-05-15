@@ -115,6 +115,13 @@ export const RefineListView = ({ children, ...props }: Props) => {
           ...props.headerButtonProps?.sx,
         },
       }}
+      contentProps={{
+        ...props.contentProps,
+        sx: {
+          px: 0,
+          ...props.contentProps?.sx,
+        },
+      }}
       wrapperProps={{
         sx: {
           backgroundColor: "transparent",
