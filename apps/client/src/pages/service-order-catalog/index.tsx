@@ -45,7 +45,6 @@ type CatalogFormState = {
   costPrice: string;
   profitMarginPercent: string;
   stockQuantity: string;
-  estimatedDurationMinutes: string;
   partCondition: ServiceOrderPartCondition;
   status: ServiceOrderCatalogStatus;
 };
@@ -57,7 +56,6 @@ const DEFAULT_FORM_STATE: CatalogFormState = {
   costPrice: "0",
   profitMarginPercent: "0",
   stockQuantity: "0",
-  estimatedDurationMinutes: "60",
   partCondition: "new",
   status: "active",
 };
@@ -333,10 +331,6 @@ export const ServiceOrderCatalogPage: React.FC<{
           type === "part"
             ? Math.max(0, Math.round(parseNumberInput(formState.stockQuantity)))
             : undefined,
-        estimatedDurationMinutes:
-          type === "labor"
-            ? Math.max(1, Number(formState.estimatedDurationMinutes) || 60)
-            : undefined,
         partCondition: type === "part" ? formState.partCondition : undefined,
         status: formState.status,
       } as const;
@@ -377,7 +371,6 @@ export const ServiceOrderCatalogPage: React.FC<{
       costPrice: String(item.costPrice ?? 0),
       profitMarginPercent: String(item.profitMarginPercent ?? 0),
       stockQuantity: String(item.stockQuantity ?? 0),
-      estimatedDurationMinutes: String(item.estimatedDurationMinutes ?? 60),
       partCondition: item.partCondition ?? "new",
       status: item.status,
     });
@@ -496,7 +489,7 @@ export const ServiceOrderCatalogPage: React.FC<{
                   fullWidth
                   size="small"
                   type="number"
-                  label={type === "part" ? "Preço de venda" : "Valor padrão"}
+                  label={type === "part" ? "Preço de venda" : "Valor do serviço"}
                   value={formState.defaultPrice}
                   onChange={(event) => setField("defaultPrice", event.target.value)}
                 />
@@ -569,18 +562,6 @@ export const ServiceOrderCatalogPage: React.FC<{
                       />
                     </Grid>
                   </Grid>
-                ) : null}
-                {type === "labor" ? (
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="number"
-                    label="Duração estimada (min)"
-                    value={formState.estimatedDurationMinutes}
-                    onChange={(event) =>
-                      setField("estimatedDurationMinutes", event.target.value)
-                    }
-                  />
                 ) : null}
                 {type === "part" ? (
                   <TextField
@@ -717,7 +698,7 @@ export const ServiceOrderCatalogPage: React.FC<{
                       <TableCell sx={{ width: type === "part" ? "9%" : "14%" }}>
                         Código
                       </TableCell>
-                      <TableCell sx={{ width: type === "part" ? "24%" : "38%" }}>
+                      <TableCell sx={{ width: type === "part" ? "24%" : "42%" }}>
                         Descrição
                       </TableCell>
                       {type === "part" ? (
@@ -728,11 +709,8 @@ export const ServiceOrderCatalogPage: React.FC<{
                           <TableCell sx={{ width: "9%" }}>Estoque</TableCell>
                         </>
                       ) : null}
-                      {type === "labor" ? (
-                        <TableCell sx={{ width: "12%" }}>Duração</TableCell>
-                      ) : null}
                       <TableCell sx={{ width: type === "part" ? "10%" : "14%" }}>
-                        {type === "part" ? "Venda" : "Valor padrão"}
+                        {type === "part" ? "Venda" : "Valor"}
                       </TableCell>
                       <TableCell sx={{ width: "12%" }}>Status</TableCell>
                       <TableCell sx={{ width: type === "part" ? "10%" : "14%" }}>
@@ -777,11 +755,6 @@ export const ServiceOrderCatalogPage: React.FC<{
                             </TableCell>
                           </>
                         ) : null}
-                        {type === "labor" ? (
-                          <TableCell>
-                            {item.estimatedDurationMinutes ?? 60} min
-                          </TableCell>
-                        ) : null}
                         <TableCell>{formatCurrency(item.defaultPrice)}</TableCell>
                         <TableCell>
                           <Chip
@@ -819,7 +792,7 @@ export const ServiceOrderCatalogPage: React.FC<{
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={type === "part" ? 10 : 7}>
+                      <TableCell colSpan={type === "part" ? 10 : 6}>
                         <Typography variant="body2" color="text.secondary">
                           {isLoading ? "Carregando..." : copy.emptyText}
                         </Typography>

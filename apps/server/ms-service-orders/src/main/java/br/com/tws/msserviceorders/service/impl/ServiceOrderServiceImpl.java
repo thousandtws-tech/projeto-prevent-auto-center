@@ -61,14 +61,29 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
     public Mono<ServiceOrderEntity> update(Long workshopId, Long id, ServiceOrderUpsertRequest request) {
         OffsetDateTime now = OffsetDateTime.now(systemClock).withOffsetSameInstant(ZoneOffset.UTC);
         return getById(workshopId, id)
-                .map(current -> serviceOrderMapper.merge(current, request, now))
-                .flatMap(serviceOrderRepository::save);
+                .flatMap(current -> {
+                    if (isClosed(current) && !isReopenRequest(request)) {
+                        return Mono.error(new ConflictException(
+                                "Esta ordem de servico esta encerrada. Reabra a OS antes de editar."
+                        ));
+                    }
+
+                    return serviceOrderRepository.save(serviceOrderMapper.merge(current, request, now));
+                });
     }
 
     @Override
     public Mono<Void> delete(Long workshopId, Long id) {
         return getById(workshopId, id)
-                .flatMap(serviceOrderRepository::delete);
+                .flatMap(current -> {
+                    if (isClosed(current)) {
+                        return Mono.error(new ConflictException(
+                                "Esta ordem de servico esta encerrada. Reabra a OS antes de excluir."
+                        ));
+                    }
+
+                    return serviceOrderRepository.delete(current);
+                });
     }
 
     @Override
@@ -108,5 +123,13 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
 
                     return serviceOrderRepository.save(serviceOrderMapper.sign(current, request, now));
                 });
+    }
+
+    private boolean isClosed(ServiceOrderEntity entity) {
+        return "closed".equalsIgnoreCase(entity.getStatus()) || "signed".equalsIgnoreCase(entity.getStatus());
+    }
+
+    private boolean isReopenRequest(ServiceOrderUpsertRequest request) {
+        return "registered".equalsIgnoreCase(request.getStatus()) && request.getSignature() == null;
     }
 }

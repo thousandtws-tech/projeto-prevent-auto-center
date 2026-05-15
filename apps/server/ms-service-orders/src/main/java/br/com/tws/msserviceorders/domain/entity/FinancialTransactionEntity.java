@@ -34,6 +34,9 @@ public class FinancialTransactionEntity {
 
     private String category;
 
+    @Column("expense_classification")
+    private String expenseClassification;
+
     @Column("payment_method")
     private String paymentMethod;
 

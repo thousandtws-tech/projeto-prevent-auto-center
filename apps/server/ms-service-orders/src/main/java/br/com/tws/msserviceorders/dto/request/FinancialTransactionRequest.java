@@ -1,6 +1,8 @@
 package br.com.tws.msserviceorders.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -34,6 +36,9 @@ public class FinancialTransactionRequest {
     @Size(max = 80, message = "category deve ter no maximo 80 caracteres.")
     private String category;
 
+    @Size(max = 20, message = "expenseClassification deve ter no maximo 20 caracteres.")
+    private String expenseClassification;
+
     @Size(max = 80, message = "paymentMethod deve ter no maximo 80 caracteres.")
     private String paymentMethod;
 
@@ -48,6 +53,10 @@ public class FinancialTransactionRequest {
     private Long supplierId;
 
     private Long serviceOrderId;
+
+    @Min(value = 1, message = "recurrenceMonths deve ser maior ou igual a 1.")
+    @Max(value = 120, message = "recurrenceMonths deve ser menor ou igual a 120.")
+    private Integer recurrenceMonths;
 
     private String notes;
 }

@@ -13,7 +13,7 @@ export type DashboardRecentOrderItem = {
   vehicle: string;
   updatedAt: string;
   total: number;
-  status: "registered" | "sent_for_signature" | "signed";
+  status: "registered" | "sent_for_signature" | "closed" | "signed";
 };
 
 type Props = {
@@ -24,6 +24,7 @@ type Props = {
 const STATUS_LABEL: Record<DashboardRecentOrderItem["status"], string> = {
   registered: "Registrada",
   sent_for_signature: "Aguardando assinatura",
+  closed: "Encerrada",
   signed: "Assinada",
 };
 
@@ -33,6 +34,7 @@ const STATUS_COLOR: Record<
 > = {
   registered: "default",
   sent_for_signature: "warning",
+  closed: "success",
   signed: "success",
 };
 

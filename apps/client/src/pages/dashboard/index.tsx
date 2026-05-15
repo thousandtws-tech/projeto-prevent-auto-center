@@ -291,11 +291,13 @@ export const DashboardPage: React.FC = () => {
     const servicesShare = totalRevenue
       ? (summary.totalServiceOrdersServicesValue / totalRevenue) * 100
       : 0;
+    const finalizedServiceOrders =
+      summary.closedServiceOrders + summary.signedServiceOrders;
     const signatureRate = summary.totalServiceOrders
-      ? (summary.signedServiceOrders / summary.totalServiceOrders) * 100
+      ? (finalizedServiceOrders / summary.totalServiceOrders) * 100
       : 0;
     const ordersPerActiveMechanic = extras?.mechanicsActive
-      ? summary.signedServiceOrders / extras.mechanicsActive
+      ? finalizedServiceOrders / extras.mechanicsActive
       : 0;
     const operationalPendencies =
       summary.pendingSignatureServiceOrders +
@@ -322,6 +324,7 @@ export const DashboardPage: React.FC = () => {
       {
         registered: 0,
         sent_for_signature: 0,
+        closed: 0,
         signed: 0,
       },
     );
@@ -334,9 +337,10 @@ export const DashboardPage: React.FC = () => {
         value: counts.sent_for_signature,
         color: theme.palette.warning.main,
       },
-      { id: 2, label: "Assinadas", value: counts.signed, color: theme.palette.success.main },
+      { id: 2, label: "Encerradas", value: counts.closed, color: theme.palette.success.dark },
+      { id: 3, label: "Assinadas", value: counts.signed, color: theme.palette.success.main },
     ];
-  }, [snapshot?.dataset.serviceOrders, theme.palette.info.main, theme.palette.success.main, theme.palette.warning.main]);
+  }, [snapshot?.dataset.serviceOrders, theme.palette.info.main, theme.palette.success.dark, theme.palette.success.main, theme.palette.warning.main]);
 
   const signatureStatus = useMemo(() => {
     const shared = snapshot?.dataset.sharedOrders ?? [];
@@ -538,7 +542,7 @@ export const DashboardPage: React.FC = () => {
               <KpiCard
                 title="Taxa de fechamento"
                 value={formatPercent(managementMetrics.signatureRate)}
-                subtitle={`${formatCompact(summary?.signedServiceOrders ?? 0)} OS assinadas`}
+                subtitle={`${formatCompact((summary?.closedServiceOrders ?? 0) + (summary?.signedServiceOrders ?? 0))} OS fechadas`}
                 icon={<FactCheckOutlinedIcon />}
                 tone={managementMetrics.signatureRate >= 70 ? "success" : "neutral"}
                 onClick={() => navigate("/ordem-servico/historico")}

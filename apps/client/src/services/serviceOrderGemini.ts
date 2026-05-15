@@ -11,6 +11,7 @@ export type ServiceOrderInsight = {
   summary: {
     totalOrders: number;
     signedOrders: number;
+    closedOrders: number;
     pendingSignatureOrders: number;
     totalApprovedValue: number;
     totalPartsApprovedValue: number;
@@ -108,10 +109,16 @@ const computeInsightSummary = (orders: ServiceOrderRecord[]) => {
 
       if (order.status === "signed") {
         acc.signedOrders += 1;
+      } else if (order.status === "closed") {
+        acc.closedOrders += 1;
       }
 
-      if (order.signature || order.status === "sent_for_signature") {
-        acc.pendingSignatureOrders += order.status === "signed" ? 0 : 1;
+      if (
+        (order.signature || order.status === "sent_for_signature") &&
+        order.status !== "closed" &&
+        order.status !== "signed"
+      ) {
+        acc.pendingSignatureOrders += 1;
       }
 
       acc.totalApprovedValue += order.totals.grandTotal;
@@ -166,6 +173,7 @@ const computeInsightSummary = (orders: ServiceOrderRecord[]) => {
     {
       totalOrders: 0,
       signedOrders: 0,
+      closedOrders: 0,
       pendingSignatureOrders: 0,
       totalApprovedValue: 0,
       totalPartsApprovedValue: 0,
@@ -222,7 +230,7 @@ const buildFallbackText = (
 
   return [
     `Resumo operacional da planilha até ${lastUpdated}.`,
-    `Foram registradas ${summary.totalOrders} OS, sendo ${summary.signedOrders} assinadas e ${summary.pendingSignatureOrders} aguardando assinatura.`,
+    `Foram registradas ${summary.totalOrders} OS, sendo ${summary.closedOrders} encerradas, ${summary.signedOrders} assinadas e ${summary.pendingSignatureOrders} aguardando assinatura.`,
     `Total aprovado no período: ${formatCurrency(summary.totalApprovedValue)}.`,
     `Receita apurada: peças ${formatCurrency(summary.totalPartsApprovedValue)} e serviços ${formatCurrency(summary.totalLaborApprovedValue + summary.totalThirdPartyApprovedValue)} (ticket médio de serviços ${formatCurrency(summary.averageTicket)}).`,
     `Total de descontos aplicados: ${formatCurrency(summary.totalDiscountValue)}.`,

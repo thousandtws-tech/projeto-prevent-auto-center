@@ -92,6 +92,10 @@ const STATUS_META: Record<
     label: "Pendente assinatura",
     color: "warning",
   },
+  closed: {
+    label: "Encerrada",
+    color: "success",
+  },
   signed: {
     label: "Assinada",
     color: "success",
@@ -207,11 +211,13 @@ export const ServiceOrderRefusalsPage: React.FC = () => {
           ? "signed"
           : record.status === "signed"
             ? "signed"
-            : linkedSharedOrder ||
-                record.signature ||
-                record.status === "sent_for_signature"
-              ? "sent_for_signature"
-              : "registered";
+            : record.status === "closed"
+              ? "closed"
+              : linkedSharedOrder ||
+                  record.signature ||
+                  record.status === "sent_for_signature"
+                ? "sent_for_signature"
+                : "registered";
 
       const orderParts = linkedSharedOrder?.parts ?? record.parts;
       const orderLabor = linkedSharedOrder?.laborServices ?? record.laborServices;
@@ -301,7 +307,7 @@ export const ServiceOrderRefusalsPage: React.FC = () => {
         acc.totalRefusals += 1;
         acc.totalRefusedValue += row.amount;
 
-        if (row.status === "signed") {
+        if (row.status === "closed" || row.status === "signed") {
           acc.signed += 1;
         }
 
@@ -322,7 +328,7 @@ export const ServiceOrderRefusalsPage: React.FC = () => {
       headerButtons={() => (
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
           <Chip size="small" color="warning" label={`${summary.totalRefusals} recusas`} />
-          <Chip size="small" color="success" label={`${summary.signed} assinadas`} />
+          <Chip size="small" color="success" label={`${summary.signed} fechadas`} />
           <Chip
             size="small"
             color="default"
@@ -359,6 +365,7 @@ export const ServiceOrderRefusalsPage: React.FC = () => {
               <MenuItem value="all">Todos</MenuItem>
               <MenuItem value="registered">Cadastrada</MenuItem>
               <MenuItem value="sent_for_signature">Pendente assinatura</MenuItem>
+              <MenuItem value="closed">Encerrada</MenuItem>
               <MenuItem value="signed">Assinada</MenuItem>
             </TextField>
             <TextField

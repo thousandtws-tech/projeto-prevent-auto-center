@@ -51,6 +51,7 @@ export type DashboardOperationsSummary = {
   inactiveCustomers: number;
   totalServiceOrders: number;
   signedServiceOrders: number;
+  closedServiceOrders: number;
   sentForSignatureServiceOrders: number;
   pendingSignatureServiceOrders: number;
   registeredServiceOrders: number;
@@ -277,6 +278,7 @@ const computeDashboardOperationsSummary = (
   const scheduledServices = new Map<string, number>();
 
   let signedServiceOrders = 0;
+  let closedServiceOrders = 0;
   let sentForSignatureServiceOrders = 0;
   let pendingSignatureServiceOrders = 0;
   let registeredServiceOrders = 0;
@@ -295,14 +297,20 @@ const computeDashboardOperationsSummary = (
 
     if (order.status === "signed") {
       signedServiceOrders += 1;
+    } else if (order.status === "closed") {
+      closedServiceOrders += 1;
     } else if (order.status === "sent_for_signature") {
       sentForSignatureServiceOrders += 1;
     } else {
       registeredServiceOrders += 1;
     }
 
-    if (order.signature || order.status === "sent_for_signature") {
-      pendingSignatureServiceOrders += order.status === "signed" ? 0 : 1;
+    if (
+      (order.signature || order.status === "sent_for_signature") &&
+      order.status !== "closed" &&
+      order.status !== "signed"
+    ) {
+      pendingSignatureServiceOrders += 1;
     }
 
     order.parts.forEach((part) => {
@@ -419,6 +427,7 @@ const computeDashboardOperationsSummary = (
     inactiveCustomers: totalCustomers - activeCustomers,
     totalServiceOrders,
     signedServiceOrders,
+    closedServiceOrders,
     sentForSignatureServiceOrders,
     pendingSignatureServiceOrders,
     registeredServiceOrders,
@@ -480,7 +489,7 @@ const buildFallbackText = (summary: DashboardOperationsSummary) => {
   return [
     `Painel consolidado atualizado em ${formatDateTime(summary.lastOperationalUpdateAt)}.`,
     `Clientes: ${summary.totalCustomers} (${summary.activeCustomers} ativos, ${summary.inactiveCustomers} inativos).`,
-    `Ordens de serviço: ${summary.totalServiceOrders} (assinadas ${summary.signedServiceOrders}, enviadas para assinatura ${summary.sentForSignatureServiceOrders}, registradas ${summary.registeredServiceOrders}).`,
+    `Ordens de serviço: ${summary.totalServiceOrders} (encerradas ${summary.closedServiceOrders}, assinadas ${summary.signedServiceOrders}, enviadas para assinatura ${summary.sentForSignatureServiceOrders}, registradas ${summary.registeredServiceOrders}).`,
     `Receita apurada em OS: peças ${formatCurrency(summary.totalServiceOrdersPartsValue)} e serviços ${formatCurrency(summary.totalServiceOrdersServicesValue)}. Ticket médio de serviços: ${formatCurrency(summary.averageServiceOrderTicket)}.`,
     `Recusas registradas: ${summary.totalRefusedItems} itens (${formatCurrency(summary.totalRefusedValue)}).`,
     `Assinaturas compartilhadas: ${summary.totalSharedOrders} (assinadas ${summary.signedSharedOrders}, pendentes ${summary.pendingSharedOrders}), valor ${formatCurrency(summary.totalSharedOrdersValue)}.`,

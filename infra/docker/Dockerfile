@@ -8,7 +8,7 @@ COPY mvnw pom.xml ./
 COPY .mvn .mvn
 COPY prevent-monolith/pom.xml prevent-monolith/pom.xml
 
-RUN chmod +x mvnw
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw
 RUN ./mvnw -B -ntp -pl ${MODULE} -am dependency:go-offline
 
 COPY ms-auth/src ms-auth/src

@@ -4,6 +4,7 @@ import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlin
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
 import PaidOutlinedIcon from "@mui/icons-material/PaidOutlined";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
@@ -33,6 +34,7 @@ import {
   removeFinancialTransactionApi,
   updateFinancialTransactionApi,
   type FinancialSummary,
+  type FinancialExpenseClassification,
   type FinancialTransaction,
   type FinancialTransactionPayload,
   type FinancialTransactionStatus,
@@ -45,12 +47,14 @@ const EMPTY_FORM: FinancialTransactionPayload = {
   status: "pending",
   description: "",
   category: "",
+  expenseClassification: "variable",
   paymentMethod: "",
   amount: 0,
   dueDate: "",
   paidAt: null,
   supplierId: null,
   serviceOrderId: null,
+  recurrenceMonths: 1,
   notes: "",
 };
 
@@ -79,6 +83,11 @@ const statusLabel: Record<FinancialTransactionStatus, string> = {
   canceled: "Cancelado",
 };
 
+const expenseClassificationLabel: Record<FinancialExpenseClassification, string> = {
+  fixed: "Fixa",
+  variable: "Variável",
+};
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -87,6 +96,34 @@ const formatCurrency = (value: number) =>
 
 const formatDate = (value?: string | null) =>
   value ? new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR") : "-";
+
+const formatMonth = (value: string) => {
+  if (!value) {
+    return "Todos";
+  }
+
+  const [year, month] = value.split("-");
+  if (!year || !month) {
+    return value;
+  }
+
+  return new Date(`${year}-${month}-01T00:00:00`).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const getLocalDateInput = (value: Date) => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getTransactionMonth = (transaction: FinancialTransaction) =>
+  transaction.dueDate?.slice(0, 7) ||
+  transaction.paidAt?.slice(0, 7) ||
+  transaction.createdAt.slice(0, 7);
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error && error.message ? error.message : "Erro inesperado";
@@ -97,6 +134,10 @@ export const FinancialPage: React.FC = () => {
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [filter, setFilter] = useState<"all" | FinancialTransactionType>("all");
+  const [monthFilter, setMonthFilter] = useState("");
+  const [expenseClassificationFilter, setExpenseClassificationFilter] = useState<
+    "all" | FinancialExpenseClassification
+  >("all");
   const [form, setForm] = useState<FinancialTransactionPayload>(EMPTY_FORM);
   const [editing, setEditing] = useState<FinancialTransaction | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -132,10 +173,49 @@ export const FinancialPage: React.FC = () => {
 
   const visibleTransactions = useMemo(
     () =>
-      transactions.filter((transaction) =>
-        filter === "all" ? true : transaction.type === filter,
+      transactions.filter((transaction) => {
+        const matchesType = filter === "all" || transaction.type === filter;
+        const matchesMonth =
+          !monthFilter || getTransactionMonth(transaction) === monthFilter;
+        const matchesClassification =
+          expenseClassificationFilter === "all" ||
+          transaction.expenseClassification === expenseClassificationFilter;
+
+        return matchesType && matchesMonth && matchesClassification;
+      }),
+    [expenseClassificationFilter, filter, monthFilter, transactions],
+  );
+
+  const paymentsDueToday = useMemo(() => {
+    const today = getLocalDateInput(new Date());
+
+    return transactions.filter(
+      (transaction) =>
+        transaction.type === "expense" &&
+        transaction.status === "pending" &&
+        transaction.dueDate === today,
+    );
+  }, [transactions]);
+
+  const visiblePendingTotals = useMemo(
+    () =>
+      visibleTransactions.reduce(
+        (totals, transaction) => {
+          if (transaction.status !== "pending") {
+            return totals;
+          }
+
+          if (transaction.type === "income") {
+            totals.income += transaction.amount;
+          } else {
+            totals.expense += transaction.amount;
+          }
+
+          return totals;
+        },
+        { income: 0, expense: 0 },
       ),
-    [transactions, filter],
+    [visibleTransactions],
   );
 
   const supplierNameById = useMemo(
@@ -156,22 +236,45 @@ export const FinancialPage: React.FC = () => {
       status: item.status,
       description: item.description,
       category: item.category,
+      expenseClassification:
+        item.type === "expense"
+          ? item.expenseClassification ?? "variable"
+          : null,
       paymentMethod: item.paymentMethod,
       amount: item.amount,
       dueDate: item.dueDate ?? "",
       paidAt: item.paidAt,
       supplierId: item.supplierId,
       serviceOrderId: item.serviceOrderId,
+      recurrenceMonths: 1,
       notes: item.notes,
     });
     setIsDialogOpen(true);
   };
 
   const save = async () => {
+    const isRecurringFixedExpense =
+      !editing &&
+      form.type === "expense" &&
+      form.expenseClassification === "fixed" &&
+      Number(form.recurrenceMonths) > 1;
+
+    if (isRecurringFixedExpense && !form.dueDate) {
+      open?.({
+        type: "error",
+        message: "Informe o vencimento da despesa recorrente",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const body = {
         ...form,
+        expenseClassification:
+          form.type === "expense"
+            ? form.expenseClassification ?? "variable"
+            : null,
         amount: Number(form.amount) || 0,
         dueDate: form.dueDate || null,
         paidAt:
@@ -180,6 +283,12 @@ export const FinancialPage: React.FC = () => {
             : null,
         supplierId: form.supplierId || null,
         serviceOrderId: form.serviceOrderId || null,
+        recurrenceMonths:
+          !editing &&
+          form.type === "expense" &&
+          form.expenseClassification === "fixed"
+            ? Math.max(1, Number(form.recurrenceMonths) || 1)
+            : 1,
       };
       if (editing) {
         await updateFinancialTransactionApi(editing.id, body);
@@ -253,11 +362,26 @@ export const FinancialPage: React.FC = () => {
               <Typography color="text.secondary">inclui pendências a receber e pagar</Typography>
             </Stack>
           </Card>
+          <Card title="Pagamentos do dia" icon={<NotificationsActiveOutlinedIcon />}>
+            <Stack spacing={0.75} sx={{ p: 2.5 }}>
+              <Typography variant="h4" fontWeight={800}>
+                {paymentsDueToday.length}
+              </Typography>
+              <Typography color="text.secondary">
+                {paymentsDueToday.length
+                  ? paymentsDueToday
+                      .slice(0, 2)
+                      .map((item) => item.description)
+                      .join(" • ")
+                  : "Nenhum pagamento pendente para hoje"}
+              </Typography>
+            </Stack>
+          </Card>
         </Stack>
 
         <Card title="Lançamentos Financeiros" icon={<AccountBalanceOutlinedIcon />}>
           <Stack spacing={2} sx={{ p: 2 }}>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} flexWrap="wrap" useFlexGap>
               <TextField
                 select
                 size="small"
@@ -270,8 +394,36 @@ export const FinancialPage: React.FC = () => {
                 <MenuItem value="income">Receitas</MenuItem>
                 <MenuItem value="expense">Despesas</MenuItem>
               </TextField>
-              <Chip label={`A receber: ${formatCurrency(summary.pendingIncome)}`} variant="outlined" />
-              <Chip label={`A pagar: ${formatCurrency(summary.pendingExpenses)}`} variant="outlined" />
+              <TextField
+                size="small"
+                type="month"
+                label="Mês"
+                value={monthFilter}
+                onChange={(event) => setMonthFilter(event.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 180 }}
+              />
+              <TextField
+                select
+                size="small"
+                label="Classificação"
+                value={expenseClassificationFilter}
+                onChange={(event) =>
+                  setExpenseClassificationFilter(
+                    event.target.value as "all" | FinancialExpenseClassification,
+                  )
+                }
+                sx={{ minWidth: 190 }}
+              >
+                <MenuItem value="all">Todas</MenuItem>
+                <MenuItem value="fixed">Fixas</MenuItem>
+                <MenuItem value="variable">Variáveis</MenuItem>
+              </TextField>
+              {monthFilter ? (
+                <Chip label={`Mês: ${formatMonth(monthFilter)}`} variant="outlined" />
+              ) : null}
+              <Chip label={`A receber: ${formatCurrency(visiblePendingTotals.income)}`} variant="outlined" />
+              <Chip label={`A pagar: ${formatCurrency(visiblePendingTotals.expense)}`} variant="outlined" />
             </Stack>
             <Divider />
             <TableContainer>
@@ -280,6 +432,8 @@ export const FinancialPage: React.FC = () => {
                   <TableRow>
                     <TableCell>Descrição</TableCell>
                     <TableCell>Tipo</TableCell>
+                    <TableCell>Categoria</TableCell>
+                    <TableCell>Classificação</TableCell>
                     <TableCell>Fornecedor</TableCell>
                     <TableCell>Vencimento</TableCell>
                     <TableCell>Status</TableCell>
@@ -293,10 +447,22 @@ export const FinancialPage: React.FC = () => {
                       <TableCell>
                         <Typography fontWeight={700}>{item.description}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {[item.category, item.paymentMethod].filter(Boolean).join(" • ") || "-"}
+                          {item.paymentMethod || "-"}
                         </Typography>
                       </TableCell>
                       <TableCell>{typeLabel[item.type]}</TableCell>
+                      <TableCell>{item.category || "-"}</TableCell>
+                      <TableCell>
+                        {item.expenseClassification ? (
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={expenseClassificationLabel[item.expenseClassification]}
+                          />
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
                       <TableCell>{item.supplierId ? supplierNameById.get(item.supplierId) ?? "-" : "-"}</TableCell>
                       <TableCell>{formatDate(item.dueDate)}</TableCell>
                       <TableCell>
@@ -324,7 +490,7 @@ export const FinancialPage: React.FC = () => {
                   ))}
                   {!visibleTransactions.length && (
                     <TableRow>
-                      <TableCell colSpan={7}>
+                      <TableCell colSpan={9}>
                         <Typography color="text.secondary">
                           {isLoading ? "Carregando financeiro..." : "Nenhum lançamento encontrado."}
                         </Typography>
@@ -347,7 +513,21 @@ export const FinancialPage: React.FC = () => {
                 select
                 label="Tipo"
                 value={form.type}
-                onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as FinancialTransactionType }))}
+                onChange={(event) =>
+                  setForm((current) => {
+                    const nextType = event.target.value as FinancialTransactionType;
+
+                    return {
+                      ...current,
+                      type: nextType,
+                      expenseClassification:
+                        nextType === "expense"
+                          ? current.expenseClassification ?? "variable"
+                          : null,
+                      recurrenceMonths: nextType === "expense" ? current.recurrenceMonths ?? 1 : 1,
+                    };
+                  })
+                }
                 sx={{ minWidth: 170 }}
               >
                 <MenuItem value="income">Receita</MenuItem>
@@ -379,6 +559,26 @@ export const FinancialPage: React.FC = () => {
                 value={form.category}
                 onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
               />
+              <TextField
+                select
+                label="Classificação"
+                value={form.expenseClassification ?? ""}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    expenseClassification:
+                      event.target.value === ""
+                        ? null
+                        : (event.target.value as FinancialExpenseClassification),
+                  }))
+                }
+                disabled={form.type !== "expense"}
+                sx={{ minWidth: 180 }}
+              >
+                <MenuItem value="">Não se aplica</MenuItem>
+                <MenuItem value="fixed">Fixa</MenuItem>
+                <MenuItem value="variable">Variável</MenuItem>
+              </TextField>
               <TextField
                 fullWidth
                 label="Forma de pagamento"
@@ -420,6 +620,23 @@ export const FinancialPage: React.FC = () => {
                   </MenuItem>
                 ))}
               </TextField>
+              {!editing &&
+              form.type === "expense" &&
+              form.expenseClassification === "fixed" ? (
+                <TextField
+                  type="number"
+                  label="Repetir por (meses)"
+                  value={form.recurrenceMonths ?? 1}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      recurrenceMonths: Math.max(1, Number(event.target.value) || 1),
+                    }))
+                  }
+                  inputProps={{ min: 1, max: 120 }}
+                  sx={{ minWidth: 180 }}
+                />
+              ) : null}
             </Stack>
             <TextField
               label="Observações"

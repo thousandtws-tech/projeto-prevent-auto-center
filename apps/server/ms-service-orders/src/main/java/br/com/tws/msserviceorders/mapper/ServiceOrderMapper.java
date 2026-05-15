@@ -99,7 +99,7 @@ public class ServiceOrderMapper {
 
     public ServiceOrderEntity share(ServiceOrderEntity current, String token, String link, OffsetDateTime now) {
         return current.toBuilder()
-                .status("signed".equals(normalizeStatus(current.getStatus())) ? "signed" : "sent_for_signature")
+                .status(isFinalStatus(current.getStatus()) ? normalizeStatus(current.getStatus()) : "sent_for_signature")
                 .signatureToken(token)
                 .signatureLink(link)
                 .signatureStatus("signed".equals(normalizeSignatureStatus(current.getSignatureStatus())) ? "signed" : "pending")
@@ -415,6 +415,10 @@ public class ServiceOrderMapper {
             return "signed";
         }
 
+        if ("closed".equalsIgnoreCase(normalizeNullableText(value))) {
+            return "closed";
+        }
+
         if ("sent_for_signature".equalsIgnoreCase(normalizeNullableText(value))) {
             return "sent_for_signature";
         }
@@ -427,6 +431,10 @@ public class ServiceOrderMapper {
             return "signed";
         }
 
+        if ("closed".equalsIgnoreCase(normalizeNullableText(value))) {
+            return "closed";
+        }
+
         if ("sent_for_signature".equalsIgnoreCase(normalizeNullableText(value))) {
             return "sent_for_signature";
         }
@@ -436,11 +444,16 @@ public class ServiceOrderMapper {
         }
 
         if (StringUtils.hasText(normalizeNullableText(value))) {
-            throw new BadRequestException("status invalido. Valores aceitos: registered, sent_for_signature, signed.");
+            throw new BadRequestException("status invalido. Valores aceitos: registered, sent_for_signature, closed, signed.");
         }
 
         return signature != null && StringUtils.hasText(signature.getToken())
                 ? "sent_for_signature"
                 : "registered";
+    }
+
+    private boolean isFinalStatus(String value) {
+        String normalized = normalizeStatus(value);
+        return "closed".equals(normalized) || "signed".equals(normalized);
     }
 }

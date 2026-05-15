@@ -480,6 +480,8 @@ export const ServiceOrderPage: React.FC = () => {
   const [isSavingServiceOrder, setIsSavingServiceOrder] = useState(false);
   const [editingServiceOrder, setEditingServiceOrder] =
     useState<ServiceOrderRecord | null>(null);
+  const isEditingClosedServiceOrder =
+    editingServiceOrder?.status === "closed" || editingServiceOrder?.status === "signed";
   const [isLoadingServiceOrderForEdit, setIsLoadingServiceOrderForEdit] =
     useState(false);
   const [linkedAppointment, setLinkedAppointment] =
@@ -1500,6 +1502,14 @@ export const ServiceOrderPage: React.FC = () => {
   };
 
   const openReview = () => {
+    if (isEditingClosedServiceOrder) {
+      open?.({
+        type: "error",
+        message: "Reabra a OS antes de editar",
+      });
+      return;
+    }
+
     setGeneratedSignatureLink("");
     setGeneratedSignatureToken("");
     setIsReviewOpen(true);
@@ -1518,6 +1528,14 @@ export const ServiceOrderPage: React.FC = () => {
   };
 
   const handleConfirmServiceOrder = async () => {
+    if (isEditingClosedServiceOrder) {
+      open?.({
+        type: "error",
+        message: "Reabra a OS antes de editar",
+      });
+      return;
+    }
+
     if (!orderInfo.orderNumber.trim()) {
       open?.({ type: "error", message: "Informe o Nº da OS" });
       return;
@@ -1768,14 +1786,20 @@ export const ServiceOrderPage: React.FC = () => {
           <Button
             size="small"
             variant="outlined"
-            onClick={() => navigate("/ordem-servico/pecas")}
+            component="a"
+            href="/ordem-servico/pecas"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             Cad. Peças
           </Button>
           <Button
             size="small"
             variant="outlined"
-            onClick={() => navigate("/ordem-servico/mao-de-obra")}
+            component="a"
+            href="/ordem-servico/mao-de-obra"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             Cad. Serviços
           </Button>
@@ -1804,7 +1828,7 @@ export const ServiceOrderPage: React.FC = () => {
             variant="contained"
             startIcon={<SaveOutlinedIcon />}
             onClick={openReview}
-            disabled={isLoadingServiceOrderForEdit}
+            disabled={isLoadingServiceOrderForEdit || isEditingClosedServiceOrder}
           >
             {isEditingServiceOrder
               ? "Salvar edição"
@@ -1831,10 +1855,20 @@ export const ServiceOrderPage: React.FC = () => {
               </Alert>
             ) : null}
             {isEditingServiceOrder ? (
-              <Alert severity={isLoadingServiceOrderForEdit ? "info" : "success"}>
+              <Alert
+                severity={
+                  isLoadingServiceOrderForEdit
+                    ? "info"
+                    : isEditingClosedServiceOrder
+                      ? "warning"
+                      : "success"
+                }
+              >
                 {isLoadingServiceOrderForEdit
                   ? "Carregando a ordem de serviço para edição."
-                  : "Modo edição ativo. As alterações serão gravadas na OS existente."}
+                  : isEditingClosedServiceOrder
+                    ? "Esta OS está encerrada. Reabra no histórico para voltar a editar."
+                    : "Modo edição ativo. As alterações serão gravadas na OS existente."}
               </Alert>
             ) : null}
             <Card
@@ -2621,7 +2655,10 @@ export const ServiceOrderPage: React.FC = () => {
                 <Button
                   fullWidth
                   variant="text"
-                  onClick={() => navigate("/ordem-servico/pecas")}
+                  component="a"
+                  href="/ordem-servico/pecas"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   Gerenciar
                 </Button>
@@ -2889,7 +2926,10 @@ export const ServiceOrderPage: React.FC = () => {
                 <Button
                   fullWidth
                   variant="text"
-                  onClick={() => navigate("/ordem-servico/mao-de-obra")}
+                  component="a"
+                  href="/ordem-servico/mao-de-obra"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   Gerenciar
                 </Button>
@@ -3790,7 +3830,7 @@ export const ServiceOrderPage: React.FC = () => {
             onClick={() => {
               void handleGenerateSignatureLink();
             }}
-            disabled={isGeneratingSignatureLink}
+            disabled={isGeneratingSignatureLink || isEditingClosedServiceOrder}
           >
             {isGeneratingSignatureLink
               ? "Gerando link..."
@@ -3801,7 +3841,7 @@ export const ServiceOrderPage: React.FC = () => {
             onClick={() => {
               void handleConfirmServiceOrder();
             }}
-            disabled={isSavingServiceOrder}
+            disabled={isSavingServiceOrder || isEditingClosedServiceOrder}
           >
             {isEditingServiceOrder
               ? "Confirmar edição"

@@ -2,6 +2,7 @@ import { requestJson } from "./httpClient";
 
 export type FinancialTransactionType = "income" | "expense";
 export type FinancialTransactionStatus = "pending" | "paid" | "canceled";
+export type FinancialExpenseClassification = "fixed" | "variable";
 
 export type FinancialTransaction = {
   id: number;
@@ -9,6 +10,7 @@ export type FinancialTransaction = {
   status: FinancialTransactionStatus;
   description: string;
   category: string;
+  expenseClassification: FinancialExpenseClassification | null;
   paymentMethod: string;
   amount: number;
   dueDate: string | null;
@@ -25,12 +27,14 @@ export type FinancialTransactionPayload = {
   status?: FinancialTransactionStatus;
   description: string;
   category?: string;
+  expenseClassification?: FinancialExpenseClassification | null;
   paymentMethod?: string;
   amount: number;
   dueDate?: string | null;
   paidAt?: string | null;
   supplierId?: number | null;
   serviceOrderId?: number | null;
+  recurrenceMonths?: number;
   notes?: string;
 };
 

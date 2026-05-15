@@ -6,7 +6,11 @@ const BACKEND_PAGE_SIZE = 100;
 
 export type ServiceOrderPartStatus = "approved" | "declined";
 export type ServiceOrderServiceStatus = "approved" | "declined";
-export type ServiceOrderRecordStatus = "registered" | "sent_for_signature" | "signed";
+export type ServiceOrderRecordStatus =
+  | "registered"
+  | "sent_for_signature"
+  | "closed"
+  | "signed";
 export type ServiceOrderSignatureStatus = "pending" | "signed";
 export type ServiceOrderPartCondition = "new" | "used";
 
@@ -134,7 +138,7 @@ const normalizeServiceStatus = (value: unknown): ServiceOrderServiceStatus =>
   value === "declined" ? "declined" : "approved";
 
 const normalizeRecordStatus = (value: unknown): ServiceOrderRecordStatus => {
-  if (value === "sent_for_signature" || value === "signed") {
+  if (value === "sent_for_signature" || value === "closed" || value === "signed") {
     return value;
   }
 

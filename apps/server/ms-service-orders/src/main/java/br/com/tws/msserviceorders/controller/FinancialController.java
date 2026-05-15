@@ -13,6 +13,7 @@ import br.com.tws.msserviceorders.security.AuthenticatedWorkshopService;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
@@ -59,10 +60,19 @@ public class FinancialController {
             @Valid @RequestBody FinancialTransactionRequest request
     ) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        int recurrenceMonths = resolveRecurrenceMonths(request);
+        validateRecurrence(request, recurrenceMonths);
+
         return authenticatedWorkshopService.getRequiredWorkshopId()
-                .flatMap(workshopId -> transactionRepository.save(toEntity(workshopId, request, now)))
-                .map(entity -> ResponseEntity.created(URI.create("/financial/transactions/" + entity.getId()))
-                        .body(toResponse(entity)));
+                .flatMapMany(workshopId -> Flux.range(0, recurrenceMonths)
+                        .map(monthOffset -> toEntity(workshopId, request, now, monthOffset))
+                        .flatMap(transactionRepository::save))
+                .collectList()
+                .map(saved -> {
+                    FinancialTransactionEntity first = saved.get(0);
+                    return ResponseEntity.created(URI.create("/financial/transactions/" + first.getId()))
+                            .body(toResponse(first));
+                });
     }
 
     @PutMapping("/transactions/{id}")
@@ -103,17 +113,27 @@ public class FinancialController {
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("Lancamento financeiro nao encontrado.")));
     }
 
-    private FinancialTransactionEntity toEntity(Long workshopId, FinancialTransactionRequest request, OffsetDateTime now) {
+    private FinancialTransactionEntity toEntity(
+            Long workshopId,
+            FinancialTransactionRequest request,
+            OffsetDateTime now,
+            int recurrenceOffsetMonths
+    ) {
+        boolean recurringProjection = recurrenceOffsetMonths > 0;
         return FinancialTransactionEntity.builder()
                 .workshopId(workshopId)
                 .type(normalizeType(request.getType()))
-                .status(normalizeStatus(request.getStatus()))
+                .status(recurringProjection ? "pending" : normalizeStatus(request.getStatus()))
                 .description(normalizeText(request.getDescription()))
                 .category(normalizeNullableText(request.getCategory()))
+                .expenseClassification(normalizeExpenseClassification(
+                        request.getExpenseClassification(),
+                        request.getType()
+                ))
                 .paymentMethod(normalizeNullableText(request.getPaymentMethod()))
                 .amount(request.getAmount())
-                .dueDate(request.getDueDate())
-                .paidAt(request.getPaidAt())
+                .dueDate(resolveDueDate(request.getDueDate(), recurrenceOffsetMonths))
+                .paidAt(recurringProjection ? null : request.getPaidAt())
                 .supplierId(request.getSupplierId())
                 .serviceOrderId(request.getServiceOrderId())
                 .notes(normalizeNullableText(request.getNotes()))
@@ -132,6 +152,10 @@ public class FinancialController {
                 .status(normalizeStatus(request.getStatus()))
                 .description(normalizeText(request.getDescription()))
                 .category(normalizeNullableText(request.getCategory()))
+                .expenseClassification(normalizeExpenseClassification(
+                        request.getExpenseClassification(),
+                        request.getType()
+                ))
                 .paymentMethod(normalizeNullableText(request.getPaymentMethod()))
                 .amount(request.getAmount())
                 .dueDate(request.getDueDate())
@@ -150,6 +174,10 @@ public class FinancialController {
                 .status(normalizeStatus(entity.getStatus()))
                 .description(defaultText(entity.getDescription()))
                 .category(defaultText(entity.getCategory()))
+                .expenseClassification(normalizeExpenseClassification(
+                        entity.getExpenseClassification(),
+                        entity.getType()
+                ))
                 .paymentMethod(defaultText(entity.getPaymentMethod()))
                 .amount(defaultMoney(entity.getAmount()))
                 .dueDate(entity.getDueDate())
@@ -167,7 +195,7 @@ public class FinancialController {
             List<br.com.tws.msserviceorders.dto.response.ServiceOrderResponse> serviceOrders
     ) {
         BigDecimal serviceOrderRevenue = serviceOrders.stream()
-                .filter(order -> "signed".equals(order.getStatus()))
+                .filter(order -> "closed".equals(order.getStatus()) || "signed".equals(order.getStatus()))
                 .map(order -> order.getTotals().getGrandTotal())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal manualIncome = sum(transactions, "income", "paid");
@@ -241,6 +269,57 @@ public class FinancialController {
             return "canceled";
         }
         return "pending";
+    }
+
+    private String normalizeExpenseClassification(String value, String type) {
+        if (!"expense".equals(normalizeType(type))) {
+            return null;
+        }
+
+        String normalized = normalizeNullableText(value);
+        if (
+                "fixed".equalsIgnoreCase(normalized) ||
+                        "fixa".equalsIgnoreCase(normalized) ||
+                        "fixo".equalsIgnoreCase(normalized)
+        ) {
+            return "fixed";
+        }
+
+        if (
+                "variable".equalsIgnoreCase(normalized) ||
+                        "variavel".equalsIgnoreCase(normalized)
+        ) {
+            return "variable";
+        }
+
+        return "variable";
+    }
+
+    private int resolveRecurrenceMonths(FinancialTransactionRequest request) {
+        Integer recurrenceMonths = request.getRecurrenceMonths();
+        return recurrenceMonths == null ? 1 : Math.max(1, recurrenceMonths);
+    }
+
+    private void validateRecurrence(FinancialTransactionRequest request, int recurrenceMonths) {
+        if (recurrenceMonths <= 1) {
+            return;
+        }
+
+        if (!"expense".equals(normalizeType(request.getType()))) {
+            throw new BadRequestException("recurrenceMonths so pode ser usado para despesas.");
+        }
+
+        if (!"fixed".equals(normalizeExpenseClassification(request.getExpenseClassification(), request.getType()))) {
+            throw new BadRequestException("Despesas recorrentes precisam ser classificadas como fixas.");
+        }
+
+        if (request.getDueDate() == null) {
+            throw new BadRequestException("dueDate e obrigatoria para despesas recorrentes.");
+        }
+    }
+
+    private LocalDate resolveDueDate(LocalDate dueDate, int recurrenceOffsetMonths) {
+        return dueDate == null ? null : dueDate.plusMonths(recurrenceOffsetMonths);
     }
 
     private String normalizeText(String value) {

@@ -17,6 +17,7 @@ public class FinancialTransactionResponse {
     String status;
     String description;
     String category;
+    String expenseClassification;
     String paymentMethod;
     BigDecimal amount;
     LocalDate dueDate;
