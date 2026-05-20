@@ -1,1 +1,0 @@
-import{af as s}from"./index-BG377Xs6.js";const i=()=>s("suppliers",{method:"GET"}),t=p=>s("suppliers",{method:"POST",body:p}),o=(p,e)=>s(`suppliers/${p}`,{method:"PUT",body:e}),u=p=>s(`suppliers/${p}`,{method:"DELETE"});export{t as c,i as l,u as r,o as u};
