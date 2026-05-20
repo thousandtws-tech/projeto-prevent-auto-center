@@ -79,7 +79,9 @@ type HistoryRow = ServiceOrderRecord & {
 type HistoryStatusFilter =
   | "all"
   | "registered"
-  | "sent_for_signature";
+  | "sent_for_signature"
+  | "closed"
+  | "signed";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", {
@@ -329,10 +331,6 @@ const getSearchableText = (row: HistoryRow) =>
   );
 
 const matchesHistoryStatus = (row: HistoryRow, filter: HistoryStatusFilter) => {
-  if (isClosedStatus(row.status)) {
-    return false;
-  }
-
   if (filter === "all") {
     return true;
   }
@@ -558,7 +556,6 @@ export const ServiceOrderHistoryPage: React.FC = () => {
       Array.from(
         new Set(
           rows
-            .filter((row) => !isClosedStatus(row.status))
             .map((row) => row.orderInfo.mechanicResponsible.trim())
             .filter(Boolean),
         ),
@@ -1470,7 +1467,7 @@ export const ServiceOrderHistoryPage: React.FC = () => {
               justifyContent="space-between"
             >
               <Typography variant="body2" color="text.secondary">
-                Recorte financeiro das OS em aberto conforme os filtros aplicados.
+                Recorte financeiro das OS do histórico conforme os filtros aplicados.
               </Typography>
               <Chip
                 size="small"
@@ -1706,11 +1703,13 @@ export const ServiceOrderHistoryPage: React.FC = () => {
                       setStatusFilter(event.target.value as HistoryStatusFilter)
                     }
                   >
-                    <MenuItem value="all">Todas em aberto</MenuItem>
+                    <MenuItem value="all">Todas as OS</MenuItem>
                     <MenuItem value="registered">Cadastrada</MenuItem>
                     <MenuItem value="sent_for_signature">
                       Aguardando assinatura
                     </MenuItem>
+                    <MenuItem value="closed">Encerrada</MenuItem>
+                    <MenuItem value="signed">Assinada</MenuItem>
                   </TextField>
                 </Grid>
                 <Grid size={{ xs: 24, sm: 12, lg: 4 }}>
@@ -1788,7 +1787,7 @@ export const ServiceOrderHistoryPage: React.FC = () => {
               <Chip
                 size="small"
                 color="primary"
-                label={`${filteredRows.length} OS em aberto`}
+                label={`${filteredRows.length} OS no histórico`}
               />
               <Chip
                 size="small"
@@ -1989,7 +1988,7 @@ export const ServiceOrderHistoryPage: React.FC = () => {
                     sx={{ fontSize: 34, color: "text.disabled" }}
                   />
                   <Typography variant="body2" color="text.secondary">
-                    Nenhuma OS em aberto encontrada com os filtros atuais.
+                    Nenhuma OS encontrada com os filtros atuais.
                   </Typography>
                 </Stack>
               </Paper>
@@ -2188,7 +2187,7 @@ export const ServiceOrderHistoryPage: React.FC = () => {
                           color="text.secondary"
                           textAlign="center"
                         >
-                          Nenhuma OS em aberto encontrada com os filtros atuais.
+                          Nenhuma OS encontrada com os filtros atuais.
                         </Typography>
                       </Stack>
                     </TableCell>
