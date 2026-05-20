@@ -125,6 +125,20 @@ public class ServiceOrderServiceImpl implements ServiceOrderService {
                 });
     }
 
+    @Override
+    public Mono<ServiceOrderEntity> reopenByToken(String token) {
+        OffsetDateTime now = OffsetDateTime.now(systemClock).withOffsetSameInstant(ZoneOffset.UTC);
+
+        return getSharedByToken(token)
+                .flatMap(current -> {
+                    if (!"signed".equalsIgnoreCase(current.getSignatureStatus())) {
+                        return Mono.error(new ConflictException("Esta ordem compartilhada ainda nao foi assinada."));
+                    }
+
+                    return serviceOrderRepository.save(serviceOrderMapper.reopenShared(current, now));
+                });
+    }
+
     private boolean isClosed(ServiceOrderEntity entity) {
         return "closed".equalsIgnoreCase(entity.getStatus()) || "signed".equalsIgnoreCase(entity.getStatus());
     }

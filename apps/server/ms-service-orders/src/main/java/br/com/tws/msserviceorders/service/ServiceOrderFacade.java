@@ -26,4 +26,6 @@ public interface ServiceOrderFacade {
     Mono<SharedServiceOrderResponse> getSharedByToken(String token);
 
     Mono<SharedServiceOrderResponse> signByToken(String token, SignSharedServiceOrderRequest request);
+
+    Mono<SharedServiceOrderResponse> reopenByToken(String token);
 }

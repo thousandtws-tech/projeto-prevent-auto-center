@@ -156,4 +156,19 @@ public class ServiceOrderController {
     ) {
         return serviceOrderFacade.signByToken(token, request);
     }
+
+    @Operation(summary = "Reabre a ordem compartilhada", description = "Endpoint publico para o cliente reabrir uma ordem assinada e assinar novamente.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ordem reaberta com sucesso"),
+            @ApiResponse(responseCode = "404", description = "Token nao encontrado",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Ordem ainda nao assinada",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    @PostMapping("/shared/{token}/reopen")
+    public Mono<SharedServiceOrderResponse> reopenByToken(
+            @Parameter(description = "Token publico da ordem compartilhada") @PathVariable String token
+    ) {
+        return serviceOrderFacade.reopenByToken(token);
+    }
 }

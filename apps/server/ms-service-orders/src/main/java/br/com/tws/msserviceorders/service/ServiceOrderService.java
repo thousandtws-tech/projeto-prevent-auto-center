@@ -25,4 +25,6 @@ public interface ServiceOrderService {
     Mono<ServiceOrderEntity> getSharedByToken(String token);
 
     Mono<ServiceOrderEntity> signByToken(String token, SignSharedServiceOrderRequest request);
+
+    Mono<ServiceOrderEntity> reopenByToken(String token);
 }

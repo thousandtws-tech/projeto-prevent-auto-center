@@ -14,6 +14,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import Grid from "@mui/material/Grid2";
 import CircularProgress from "@mui/material/CircularProgress";
+import AutorenewOutlinedIcon from "@mui/icons-material/AutorenewOutlined";
 import BuildCircleOutlinedIcon from "@mui/icons-material/BuildCircleOutlined";
 import BorderColorOutlinedIcon from "@mui/icons-material/BorderColorOutlined";
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
@@ -23,6 +24,7 @@ import {
   type SharedServiceOrderPartStatus,
   type SharedServiceOrderServiceStatus,
   markSharedServiceOrderAsSignedApi,
+  reopenSharedServiceOrderApi,
 } from "../../services/serviceOrderSignature";
 import { LightThemeWithResponsiveFontSizes } from "../../theme";
 
@@ -57,6 +59,7 @@ export const ServiceOrderSignaturePage: React.FC = () => {
   const [accepted, setAccepted] = useState(false);
   const [isLoadingOrder, setIsLoadingOrder] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [order, setOrder] = useState(() => initialOrder);
   const [partStatusById, setPartStatusById] = useState<
     Record<string, SharedServiceOrderPartStatus>
@@ -388,6 +391,52 @@ export const ServiceOrderSignaturePage: React.FC = () => {
       });
     } finally {
       setIsSigning(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    if (!order || !isSigned) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Deseja reabrir esta ordem para revisar os itens e assinar novamente?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsReopening(true);
+
+      const updated = await reopenSharedServiceOrderApi(order.token);
+      if (!updated) {
+        open?.({
+          type: "error",
+          message: "Não foi possível reabrir a ordem",
+        });
+        return;
+      }
+
+      setOrder(updated);
+      setSignatureName("");
+      setAccepted(false);
+      open?.({
+        type: "success",
+        message: "Ordem reaberta para nova assinatura",
+      });
+    } catch (error) {
+      open?.({
+        type: "error",
+        message: "Falha ao reabrir a ordem",
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : "Erro inesperado",
+      });
+    } finally {
+      setIsReopening(false);
     }
   };
 
@@ -880,9 +929,13 @@ export const ServiceOrderSignaturePage: React.FC = () => {
                   backgroundColor: "rgba(34,197,94,0.08)",
                 }}
               >
-                <Stack direction="row" spacing={1.2} alignItems="center">
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1.2}
+                  alignItems={{ xs: "stretch", sm: "center" }}
+                >
                   <CheckCircleOutlineOutlinedIcon color="success" />
-                  <Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography fontWeight={700}>
                       Ordem assinada por {order.signature?.name}
                     </Typography>
@@ -890,6 +943,24 @@ export const ServiceOrderSignaturePage: React.FC = () => {
                       {formatDateTime(order.signature?.signedAt || "")}
                     </Typography>
                   </Box>
+                  <Button
+                    color="warning"
+                    variant="outlined"
+                    startIcon={
+                      isReopening ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : (
+                        <AutorenewOutlinedIcon />
+                      )
+                    }
+                    onClick={() => {
+                      void handleReopen();
+                    }}
+                    disabled={isReopening}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    {isReopening ? "Reabrindo..." : "Reabrir"}
+                  </Button>
                 </Stack>
               </Paper>
             ) : (

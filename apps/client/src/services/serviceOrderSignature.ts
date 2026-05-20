@@ -1,6 +1,8 @@
 import { isBackendApiEnabled, requestJson } from "./httpClient";
 import {
   listServiceOrdersApi,
+  readServiceOrders,
+  updateServiceOrder,
   type ServiceOrderPart,
   type ServiceOrderRecord,
   type ServiceOrderServiceItem,
@@ -554,6 +556,58 @@ export const markSharedServiceOrderAsSigned = (
   return updatedOrder;
 };
 
+const syncReopenedSharedOrderRecord = (token: string) => {
+  const linkedOrder = readServiceOrders().find(
+    (record) => record.signature?.token === token,
+  );
+  if (!linkedOrder?.signature) {
+    return;
+  }
+
+  updateServiceOrder(linkedOrder.id, {
+    status: "sent_for_signature",
+    signature: {
+      ...linkedOrder.signature,
+      status: "pending",
+      signerName: "",
+      signedAt: "",
+    },
+  });
+};
+
+export const reopenSharedServiceOrder = (
+  token: string,
+): SharedServiceOrder | null => {
+  if (!token) {
+    return null;
+  }
+
+  const orders = readSharedServiceOrders();
+  let updatedOrder: SharedServiceOrder | null = null;
+
+  const next = orders.map((order) => {
+    if (order.token !== token) {
+      return order;
+    }
+
+    updatedOrder = {
+      ...order,
+      status: "pending",
+      signature: null,
+    };
+
+    return updatedOrder;
+  });
+
+  if (!updatedOrder) {
+    return null;
+  }
+
+  writeSharedServiceOrders(next);
+  syncReopenedSharedOrderRecord(token);
+  return updatedOrder;
+};
+
 type MarkSharedServiceOrderAsSignedApiOptions = {
   parts?: ServiceOrderPart[];
   laborServices?: ServiceOrderServiceItem[];
@@ -593,6 +647,35 @@ export const markSharedServiceOrderAsSignedApi = async (
   const normalized = normalizeSharedOrder(response);
   if (normalized) {
     upsertSharedServiceOrderCache(normalized);
+  }
+
+  return normalized;
+};
+
+export const reopenSharedServiceOrderApi = async (
+  token: string,
+): Promise<SharedServiceOrder | null> => {
+  if (!token) {
+    return null;
+  }
+
+  if (!isBackendApiEnabled()) {
+    return reopenSharedServiceOrder(token);
+  }
+
+  const response = await requestJson<unknown>(
+    `service-orders/shared/${encodeURIComponent(token)}/reopen`,
+    {
+      method: "POST",
+      skipAuth: true,
+      retryOnUnauthorized: false,
+    },
+  );
+
+  const normalized = normalizeSharedOrder(response);
+  if (normalized) {
+    upsertSharedServiceOrderCache(normalized);
+    syncReopenedSharedOrderRecord(token);
   }
 
   return normalized;

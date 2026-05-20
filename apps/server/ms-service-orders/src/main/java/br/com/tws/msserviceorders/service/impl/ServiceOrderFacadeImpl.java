@@ -79,4 +79,10 @@ public class ServiceOrderFacadeImpl implements ServiceOrderFacade {
         return serviceOrderService.signByToken(token, request)
                 .map(serviceOrderMapper::toSharedResponse);
     }
+
+    @Override
+    public Mono<SharedServiceOrderResponse> reopenByToken(String token) {
+        return serviceOrderService.reopenByToken(token)
+                .map(serviceOrderMapper::toSharedResponse);
+    }
 }

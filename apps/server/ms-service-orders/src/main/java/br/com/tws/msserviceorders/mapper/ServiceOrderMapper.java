@@ -130,6 +130,16 @@ public class ServiceOrderMapper {
                 .build();
     }
 
+    public ServiceOrderEntity reopenShared(ServiceOrderEntity current, OffsetDateTime now) {
+        return current.toBuilder()
+                .status("sent_for_signature")
+                .signatureStatus("pending")
+                .signerName(null)
+                .signedAt(null)
+                .updatedAt(now)
+                .build();
+    }
+
     public ServiceOrderResponse toResponse(ServiceOrderEntity entity) {
         StoredServiceOrderPayload payload = readPayload(entity.getPayloadJson());
 
