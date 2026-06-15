@@ -1,2 +1,1 @@
-# tws-prevent-autocenter-anapolis
-Projeto CRM Para Oficina Mecanica
+O Prevent AutoCenter é uma plataforma desenvolvida para auxiliar a gestão de oficinas mecânicas e centros automotivos, centralizando o controle de clientes, veículos, ordens de serviço e manutenções preventivas. O sistema visa otimizar processos operacionais, melhorar o atendimento ao cliente e garantir maior controle sobre os serviços realizados.
